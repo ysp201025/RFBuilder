@@ -413,7 +413,7 @@ kbd{ background:var(--bg-3); border:1px solid var(--border-1); border-bottom-wid
       <button class="hbtn ghost-icon" id="btn-theme" title="Toggle theme"><span class="msym" id="theme-icon">dark_mode</span></button>
       <button class="hbtn ghost-icon" id="btn-shortcuts" title="Keyboard shortcuts (?)"><span class="msym">keyboard</span></button>
       <button class="hbtn ghost-icon" id="btn-settings" title="Settings"><span class="msym">settings</span></button>
-      <button class="hbtn primary" id="btn-build-apk" title="Build APK (demo)"><span class="msym">rocket_launch</span> Build APK</button>
+      <button class="hbtn primary" id="btn-build-apk" title="HTML → APK builder (real project export + demo pipeline)"><span class="msym">rocket_launch</span> Build APK</button>
       <button class="avatar-btn" id="btn-account" title="Account">G</button>
     </div>
   </header>
@@ -617,16 +617,25 @@ kbd{ background:var(--bg-3); border:1px solid var(--border-1); border-bottom-wid
 
 <div class="modal-overlay" id="modal-apk">
   <div class="modal wide">
-    <div class="modal-head"><span class="msym">rocket_launch</span><h2>Build APK — Demo Pipeline</h2><button class="icon-btn" data-close="modal-apk"><span class="msym">close</span></button></div>
+    <div class="modal-head"><span class="msym">rocket_launch</span><h2>HTML → APK Builder</h2><button class="icon-btn" data-close="modal-apk"><span class="msym">close</span></button></div>
     <div class="modal-body">
+      <div class="field-hint" style="background:var(--accent-soft);border:1px solid var(--border-1);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;line-height:1.6;">
+        <b style="color:var(--accent-strong);">How this works:</b> a browser can't run the Java/Android SDK/Gradle toolchain itself, so a genuine <code>.apk</code> can't be compiled inside this static page. Instead, RFBuilder does two real things: (1) it packages your project into a real, buildable <b>Android Studio (WebView) project</b> you can compile into a real signed APK with one command, and (2) it plays out the build pipeline below so you can see each stage a real build server would run. Use the pipeline to preview the process, then export the real project to actually ship it.
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:6px;">
+        <div class="field" style="flex:1; min-width:160px;"><label>App name</label><input type="text" id="apk-appname" placeholder="My Awesome App"></div>
+        <div class="field" style="flex:1; min-width:200px;"><label>Package name</label><input type="text" id="apk-pkg" placeholder="com.rfbuilder.myapp"></div>
+        <div class="field" style="width:110px;"><label>Version</label><input type="text" id="apk-version" placeholder="1.0.0"></div>
+      </div>
       <div class="progress-track"><div class="progress-fill" id="apk-progress-fill"></div></div>
       <div class="pipeline" id="apk-pipeline"></div>
       <div class="build-log" id="apk-log"></div>
     </div>
     <div class="modal-foot">
       <button class="btn" data-close="modal-apk">Close</button>
-      <button class="btn primary" id="btn-start-build"><span class="msym fs16">play_arrow</span> Start Build</button>
-      <button class="btn primary hidden" id="btn-download-apk"><span class="msym fs16">download</span> Download (Demo)</button>
+      <button class="btn" id="btn-export-project"><span class="msym fs16">folder_zip</span> Export Android Project (Real)</button>
+      <button class="btn primary" id="btn-start-build"><span class="msym fs16">play_arrow</span> Run Build Pipeline</button>
+      <button class="btn primary hidden" id="btn-download-apk"><span class="msym fs16">download</span> Download Demo Output</button>
     </div>
   </div>
 </div>
@@ -1545,11 +1554,16 @@ const BUILD_STEPS = [
   {title:'Signing APK', sub:'Applying debug keystore signature', icon:'verified_user', ms:600},
   {title:'Packaging output', sub:'Finalizing build artifact', icon:'inventory', ms:500}
 ];
+function slugify(s){ return (s||'app').toLowerCase().replace(/[^a-z0-9]+/g,'').replace(/^[0-9]+/,'') || 'app'; }
 function openApkModal(){
+  const p = currentProject();
   document.getElementById('apk-progress-fill').style.width='0%';
   document.getElementById('apk-log').innerHTML='';
   document.getElementById('btn-download-apk').classList.add('hidden');
   document.getElementById('btn-start-build').classList.remove('hidden');
+  document.getElementById('apk-appname').value = p.name;
+  document.getElementById('apk-pkg').value = 'com.rfbuilder.' + slugify(p.name);
+  document.getElementById('apk-version').value = '1.0.0';
   renderPipeline(-1);
   openModal('modal-apk');
 }
@@ -1606,11 +1620,15 @@ document.getElementById('btn-download-apk').addEventListener('click', ()=>{
 This file simulates an APK build so you can see the build pipeline UI in action.
 It is a ZIP archive (not a real signed .apk) containing your project's source files.
 
-A real APK build would additionally require a server-side pipeline running:
-Node.js + Express, Java, the Android SDK, Gradle, APKTool and AAPT2, wired up
-to a build-queue engine, file storage and authentication — none of which can
-run inside a static, offline HTML file. This demo focuses on the front-end
-build UX described in the brief.
+A real APK build needs a server-side pipeline running Node.js + Express, Java,
+the Android SDK, Gradle, APKTool and AAPT2 — none of which can run inside a
+static, offline HTML file. This demo focuses on the front-end build UX.
+
+>>> Want a REAL, installable APK? <<<
+Click "Export Android Project (Real)" in the Build APK dialog instead. It
+generates an actual Android Studio / Gradle project (WebView wrapper around
+this project's HTML/CSS/JS). Open it in Android Studio, or run
+"./gradlew assembleDebug", to produce a real signed APK on your machine.
 
 Project: ${p.name}
 Built:   ${new Date().toString()}
@@ -1621,6 +1639,172 @@ Built:   ${new Date().toString()}
   });
 });
 function updateQueueBadge(){ document.getElementById('status-queue').textContent = State.buildQueue.filter(q=>q.status==='building').length; }
+
+/* ---- Real, buildable Android (WebView) project export ---- */
+function readApkFields(){
+  const appName = document.getElementById('apk-appname').value.trim() || 'My App';
+  let pkg = document.getElementById('apk-pkg').value.trim() || 'com.rfbuilder.app';
+  if(!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(pkg)){
+    pkg = 'com.rfbuilder.' + slugify(appName);
+    apkLog('Package name was invalid — using "'+pkg+'" instead.');
+  }
+  const version = document.getElementById('apk-version').value.trim() || '1.0.0';
+  return {appName, pkg, version};
+}
+function generateAndroidProject(){
+  syncCanvasToHtml();
+  const p = currentProject();
+  const {appName, pkg, version} = readApkFields();
+  const pkgPath = pkg.split('.').join('/');
+  const versionCode = 1;
+  const zip = new JSZip();
+
+  zip.file('README-BUILD.md',
+`# ${appName} — Android Project (generated by RFBuilder)
+
+This is a real, buildable Android Studio project. It wraps your web app
+(HTML/CSS/JS from the "assets/www" folder) in a native WebView shell.
+
+## Requirements
+- Android Studio (or a JDK 17 + Android SDK + Gradle command-line setup)
+- Android SDK Platform matching compileSdk (34) installed
+
+## Build a real, signed debug APK
+1. Open this folder in Android Studio, **or** from a terminal with the
+   Android SDK on your PATH, run:
+   \`\`\`
+   ./gradlew assembleDebug
+   \`\`\`
+2. The output APK will be at:
+   \`app/build/outputs/apk/debug/app-debug.apk\`
+3. For a release build (signed for the Play Store), configure a signing
+   key in \`app/build.gradle\` and run \`./gradlew assembleRelease\`.
+
+## What RFBuilder generated for you
+- \`app/src/main/assets/www/\` — your exported HTML/CSS/JS/assets
+- \`MainActivity.java\` — loads \`file:///android_asset/www/index.html\` in a WebView
+- \`AndroidManifest.xml\`, \`build.gradle\`, \`settings.gradle\` — a minimal, working Gradle project
+
+Package: \`${pkg}\`  ·  Version: ${version} (versionCode ${versionCode})
+Generated: ${new Date().toString()}
+`);
+
+  zip.file('settings.gradle', `rootProject.name = "${appName.replace(/"/g,'')}"\ninclude ':app'\n`);
+  zip.file('build.gradle',
+`buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.2.0' }
+}
+allprojects { repositories { google(); mavenCentral() } }
+`);
+  zip.file('gradle.properties', `android.useAndroidX=true\norg.gradle.jvmargs=-Xmx1536m\n`);
+
+  zip.file('app/build.gradle',
+`plugins { id 'com.android.application' }
+
+android {
+    namespace '${pkg}'
+    compileSdk 34
+    defaultConfig {
+        applicationId "${pkg}"
+        minSdk 21
+        targetSdk 34
+        versionCode ${versionCode}
+        versionName "${version}"
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.9.0'
+}
+`);
+
+  zip.file(`app/src/main/AndroidManifest.xml`,
+`<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:allowBackup="true"
+        android:label="${escapeHtmlXml(appName)}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+        <activity android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+`);
+
+  zip.file(`app/src/main/java/${pkgPath}/MainActivity.java`,
+`package ${pkg};
+
+import android.os.Bundle;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+    private WebView webView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        webView = new WebView(this);
+        setContentView(webView);
+
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        webView.setWebViewClient(new WebViewClient());
+
+        webView.loadUrl("file:///android_asset/www/index.html");
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) webView.goBack(); else super.onBackPressed();
+    }
+}
+`);
+
+  zip.file('app/src/main/res/values/strings.xml',
+`<resources>\n    <string name="app_name">${escapeHtmlXml(appName)}</string>\n</resources>\n`);
+  zip.file('app/src/main/res/values/styles.xml',
+`<resources>\n    <style name="Theme.AppCompat.DayNight.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar"/>\n</resources>\n`);
+
+  // bundle the actual web project into assets/www
+  Object.entries(p.files).forEach(([path, content])=>{
+    if(!path.endsWith('/.keep')) zip.file('app/src/main/assets/www/'+path, content);
+  });
+  (p.assets||[]).forEach(a=>{
+    const base64 = a.data.split(',')[1];
+    if(base64) zip.file('app/src/main/assets/www/'+a.name, base64, {base64:true});
+  });
+
+  zip.generateAsync({type:'blob'}).then(blob=>{
+    downloadBlob(blob, slugify(appName)+'-android-project.zip');
+    apkLog('Android Studio project exported — run ./gradlew assembleDebug to get a real APK.', true);
+    toast('Real Android project exported','success');
+  });
+}
+function escapeHtmlXml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])); }
+document.getElementById('btn-export-project').addEventListener('click', generateAndroidProject);
 
 /* ============================================================
    19. AI CHAT (simulated locally)
@@ -1640,7 +1824,7 @@ function aiReply(q){
   const s = q.toLowerCase();
   if(s.includes('page') || s.includes('file')) return 'Click the note-and-plus icon in the Explorer panel (top of the Files tab) to add a new file — try "about.html". It will show up in the file tree instantly.';
   if(s.includes('export') || s.includes('download')) return 'Use the Export button in the header (or Ctrl+E) to download your whole project — code, files and assets — as a ZIP.';
-  if(s.includes('build') || s.includes('apk') || s.includes('pipeline')) return 'The Build APK button runs a simulated pipeline: validate → AAPT2 → Gradle → APKTool → sign → package. It\'s a UI demo of a real Android build chain, since a static page can\'t run Gradle itself.';
+  if(s.includes('build') || s.includes('apk') || s.includes('pipeline')) return 'Open Build APK: "Run Build Pipeline" plays out a simulated validate → AAPT2 → Gradle → APKTool → sign → package sequence, since a static page can\'t run Gradle itself. For a REAL installable app, click "Export Android Project (Real)" — it downloads an actual Android Studio/Gradle project wrapping your app in a WebView. Run "./gradlew assembleDebug" on your machine to get a genuine signed APK.';
   if(s.includes('asset') || s.includes('image')) return 'Open the Assets tab in the sidebar and drag an image in. Then reference its exact filename as an src in your HTML — RFBuilder swaps it for the real file automatically in Preview and Export.';
   if(s.includes('theme') || s.includes('dark') || s.includes('light')) return 'Toggle the sun/moon icon in the header, or press Ctrl+J, to switch between dark and light themes.';
   if(s.includes('template')) return 'Open "New Project" and pick a template — Landing Page, Portfolio, Login Form or Dashboard — to start with ready-made layouts.';
