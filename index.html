@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>RFBuilder — App Builder Studio</title>
+<meta name="theme-color" content="#7C3AED">
+<meta name="description" content="RFBuilder — drag & drop app builder, code editor and build studio">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%237C3AED'/%3E%3Ctext x='50' y='68' font-size='58' font-family='Arial' font-weight='800' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   RFBUILDER — DESIGN TOKENS
+   Palette: Violet core (#7C3AED) with an ultraviolet-to-ink gradient
+   backdrop, an ember-amber signal color for "build" states, and a
+   mint success / coral danger pair. Dark surface is a deep
+   blue-violet ink (#0E0B1A), not pure black, so the purple accent
+   has room to glow.
+   Type: Inter (UI) + JetBrains Mono (code / data / numeric readouts)
+   Signature: the "Build Pipeline" — a live animated stage tracker
+   used by the APK builder, echoing the Gradle/AAPT2/APKTool chain.
+   ============================================================ */
+:root{
+  --violet-50:#f5f3ff; --violet-100:#ede9fe; --violet-200:#ddd6fe; --violet-300:#c4b5fd;
+  --violet-400:#a78bfa; --violet-500:#8b5cf6; --violet-600:#7c3aed; --violet-700:#6d28d9;
+  --violet-800:#5b21b6; --violet-900:#4c1d95;
+  --amber:#f59e0b; --mint:#22c55e; --coral:#f43f5e; --sky:#38bdf8;
+
+  --bg-0:#0e0b1a; --bg-1:#161226; --bg-2:#1d1832; --bg-3:#26203f; --bg-elevated:#211c38;
+  --border-0: #322a52; --border-1:#3c3260;
+  --text-0:#f3f1fa; --text-1:#c9c3e0; --text-2:#8d84b3;
+  --accent: var(--violet-500); --accent-strong: var(--violet-400); --accent-soft: rgba(139,92,246,.16);
+
+  --font-ui:'Inter',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:16px;
+  --shadow-1: 0 2px 10px rgba(0,0,0,.25);
+  --shadow-2: 0 12px 32px rgba(15,8,35,.45);
+  --header-h:52px; --tabbar-h:38px; --statusbar-h:26px;
+  --sidebar-w:250px; --preview-w:38%;
+  --transition: .16s cubic-bezier(.4,0,.2,1);
+}
+html[data-theme="light"]{
+  --bg-0:#f7f5fc; --bg-1:#ffffff; --bg-2:#f0edf9; --bg-3:#e6e1f5; --bg-elevated:#ffffff;
+  --border-0:#e2ddf3; --border-1:#d6cef2;
+  --text-0:#221c3a; --text-1:#463d6b; --text-2:#8078a0;
+  --accent: var(--violet-600); --accent-strong: var(--violet-700); --accent-soft: rgba(124,58,237,.10);
+  --shadow-1: 0 2px 10px rgba(90,60,160,.08);
+  --shadow-2: 0 14px 34px rgba(90,60,160,.16);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  font-family:var(--font-ui); background:var(--bg-0); color:var(--text-0);
+  overflow:hidden; -webkit-font-smoothing:antialiased; font-size:14px;
+}
+::selection{ background:var(--accent-soft); color:var(--text-0);}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border-1); border-radius:8px; border:2px solid transparent; background-clip:padding-box;}
+::-webkit-scrollbar-thumb:hover{background:var(--accent-strong); background-clip:padding-box;}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+a{color:inherit;}
+.msym{font-family:'Material Symbols Outlined'; font-size:19px; line-height:1; user-select:none; font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20; vertical-align:middle;}
+.msym.fs16{font-size:16px;} .msym.fs22{font-size:22px;} .msym.fill{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 20;}
+
+/* ---------- App shell ---------- */
+#app{ height:100vh; display:flex; flex-direction:column; }
+
+/* ---------- Header ---------- */
+#header{
+  height:var(--header-h); flex:0 0 auto; display:flex; align-items:center; gap:10px;
+  padding:0 12px; background:linear-gradient(180deg,var(--bg-1),var(--bg-1));
+  border-bottom:1px solid var(--border-0); position:relative; z-index:40;
+}
+.brand{ display:flex; align-items:center; gap:9px; padding-right:10px; margin-right:2px; border-right:1px solid var(--border-0);}
+.brand-mark{
+  width:28px;height:28px;border-radius:8px; display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--violet-400),var(--violet-700)); color:#fff; font-weight:800; font-size:14px;
+  box-shadow:0 2px 8px rgba(124,58,237,.5);
+}
+.brand-name{font-weight:800; font-size:15.5px; letter-spacing:-.02em;}
+.brand-name span{color:var(--accent-strong);}
+.hbtn{
+  display:flex; align-items:center; gap:6px; height:32px; padding:0 10px; border-radius:var(--radius-sm);
+  border:1px solid transparent; background:transparent; color:var(--text-1); font-size:12.5px; font-weight:600;
+  transition:var(--transition);
+}
+.hbtn:hover{ background:var(--bg-3); color:var(--text-0);}
+.hbtn.primary{ background:linear-gradient(135deg,var(--violet-500),var(--violet-700)); color:#fff; box-shadow:0 2px 10px rgba(124,58,237,.35);}
+.hbtn.primary:hover{ filter:brightness(1.08);}
+.hbtn.ghost-icon{ width:32px; padding:0; justify-content:center;}
+.hbtn:disabled{opacity:.35; cursor:not-allowed;}
+#header .divider{ width:1px; height:22px; background:var(--border-0); margin:0 2px;}
+#project-name-wrap{ display:flex; align-items:center; gap:6px; padding:0 8px; height:32px; border-radius:var(--radius-sm); background:var(--bg-2); border:1px solid var(--border-0); max-width:220px;}
+#project-name-wrap .msym{font-size:15px; color:var(--accent-strong);}
+#project-name-input{ background:transparent; border:none; outline:none; color:var(--text-0); font-weight:600; font-size:12.5px; width:150px;}
+#save-status{ font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:4px; white-space:nowrap;}
+#save-status .dot{width:6px;height:6px;border-radius:50%;background:var(--mint); transition:var(--transition);}
+#save-status.saving .dot{background:var(--amber); animation:pulse 1s infinite;}
+@keyframes pulse{50%{opacity:.3;}}
+#header-right{ margin-left:auto; display:flex; align-items:center; gap:6px;}
+.device-toggle{ display:flex; background:var(--bg-2); border:1px solid var(--border-0); border-radius:var(--radius-sm); padding:2px; gap:2px;}
+.device-toggle button{ width:28px;height:26px; display:flex;align-items:center;justify-content:center; border:none; background:transparent; border-radius:5px; color:var(--text-2);}
+.device-toggle button.active{ background:var(--accent); color:#fff;}
+.avatar-btn{ width:30px;height:30px;border-radius:50%; background:linear-gradient(135deg,var(--violet-400),var(--violet-700)); border:none; color:#fff; font-weight:700; font-size:12px; display:flex;align-items:center;justify-content:center;}
+
+/* ---------- Body layout ---------- */
+#body-row{ flex:1 1 auto; display:flex; min-height:0; position:relative;}
+
+/* ---------- Sidebar ---------- */
+#sidebar{
+  width:var(--sidebar-w); flex:0 0 auto; background:var(--bg-1); border-right:1px solid var(--border-0);
+  display:flex; flex-direction:column; min-height:0; transition:margin-left var(--transition), width var(--transition);
+}
+#sidebar.collapsed{ margin-left:calc(-1 * var(--sidebar-w)); }
+.side-tabs{ display:flex; border-bottom:1px solid var(--border-0); flex:0 0 auto;}
+.side-tab{ flex:1; padding:9px 0; text-align:center; background:transparent; border:none; color:var(--text-2); border-bottom:2px solid transparent; }
+.side-tab .msym{display:block; margin:0 auto 2px;}
+.side-tab span.lbl{font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;}
+.side-tab.active{ color:var(--accent-strong); border-bottom-color:var(--accent);}
+.side-panel{ display:none; flex:1; min-height:0; flex-direction:column;}
+.side-panel.active{display:flex;}
+.side-panel-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px 6px; flex:0 0 auto;}
+.side-panel-head h3{ margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-2); font-weight:700;}
+.icon-btn{ width:24px;height:24px; display:flex;align-items:center;justify-content:center; background:transparent;border:none;border-radius:5px; color:var(--text-2);}
+.icon-btn:hover{ background:var(--bg-3); color:var(--text-0);}
+#file-tree{ flex:1; overflow:auto; padding:4px 6px 12px;}
+.tree-node{ display:flex; align-items:center; gap:5px; padding:5px 8px; border-radius:6px; font-size:12.5px; color:var(--text-1); cursor:pointer; white-space:nowrap; user-select:none;}
+.tree-node:hover{ background:var(--bg-2);}
+.tree-node.active{ background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
+.tree-node .msym{font-size:16px; flex:0 0 auto;}
+.tree-node .ext-badge{ margin-left:auto; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:4px; background:var(--bg-3); color:var(--text-2);}
+.tree-children{ margin-left:16px; border-left:1px dashed var(--border-0); padding-left:4px;}
+.tree-folder-row{ display:flex; align-items:center; gap:5px; padding:5px 8px; border-radius:6px; font-size:12.5px; font-weight:600; color:var(--text-1); cursor:pointer;}
+.tree-folder-row:hover{ background:var(--bg-2);}
+.tree-folder-row .msym{ font-size:16px; color:var(--amber);}
+#sidebar-footer{ flex:0 0 auto; padding:8px 10px; border-top:1px solid var(--border-0); display:flex; gap:6px;}
+#sidebar-footer button{ flex:1; font-size:11px; font-weight:600; padding:7px 4px; border-radius:7px; border:1px dashed var(--border-1); background:transparent; color:var(--text-2); display:flex; align-items:center; justify-content:center; gap:4px;}
+#sidebar-footer button:hover{ border-color:var(--accent); color:var(--accent-strong); background:var(--accent-soft);}
+
+/* Asset manager */
+#asset-drop{ margin:8px 12px; border:1.5px dashed var(--border-1); border-radius:var(--radius-md); padding:16px 8px; text-align:center; color:var(--text-2); font-size:11.5px;}
+#asset-drop.dragover{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent-strong);}
+#asset-drop .msym{ display:block; margin:0 auto 4px; font-size:26px; color:var(--accent-strong);}
+#asset-grid{ flex:1; overflow:auto; padding:4px 12px 12px; display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.asset-card{ border:1px solid var(--border-0); border-radius:var(--radius-sm); overflow:hidden; background:var(--bg-2); position:relative;}
+.asset-card .thumb{ height:56px; display:flex; align-items:center; justify-content:center; background:var(--bg-3); overflow:hidden;}
+.asset-card .thumb img{ width:100%;height:100%; object-fit:cover;}
+.asset-card .thumb .msym{ font-size:24px; color:var(--text-2);}
+.asset-card .name{ font-size:9.5px; padding:4px 6px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.asset-card .del{ position:absolute; top:3px; right:3px; width:18px;height:18px; background:rgba(0,0,0,.55); border-radius:4px; display:none; align-items:center; justify-content:center; color:#fff;}
+.asset-card:hover .del{display:flex;}
+.asset-card .del .msym{font-size:13px;}
+
+/* Projects panel */
+#project-list{ flex:1; overflow:auto; padding:4px 10px 12px; display:flex; flex-direction:column; gap:6px;}
+.proj-card{ border:1px solid var(--border-0); border-radius:var(--radius-md); padding:10px; background:var(--bg-2); cursor:pointer; transition:var(--transition);}
+.proj-card:hover{ border-color:var(--accent);}
+.proj-card.active{ border-color:var(--accent); background:var(--accent-soft);}
+.proj-card .pname{ font-weight:700; font-size:12.5px; display:flex; align-items:center; gap:6px;}
+.proj-card .pmeta{ font-size:10.5px; color:var(--text-2); margin-top:3px;}
+
+/* Plugins panel */
+#plugin-list{ flex:1; overflow:auto; padding:6px 12px 12px; display:flex; flex-direction:column; gap:8px;}
+.plugin-card{ border:1px solid var(--border-0); border-radius:var(--radius-md); padding:10px; background:var(--bg-2);}
+.plugin-card .prow{ display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.plugin-card .pname{ font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px;}
+.plugin-card .pdesc{ font-size:10.5px; color:var(--text-2); margin-top:5px; line-height:1.5;}
+.switch{ width:34px;height:19px; border-radius:20px; background:var(--bg-3); border:1px solid var(--border-1); position:relative; flex:0 0 auto;}
+.switch i{ position:absolute; top:1px; left:1px; width:15px;height:15px; border-radius:50%; background:var(--text-2); transition:var(--transition);}
+.switch.on{ background:var(--accent); border-color:var(--accent);}
+.switch.on i{ left:16px; background:#fff;}
+
+/* ---------- Main / editor area ---------- */
+#main{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg-0);}
+#tabbar{ height:var(--tabbar-h); flex:0 0 auto; display:flex; align-items:stretch; background:var(--bg-1); border-bottom:1px solid var(--border-0); overflow-x:auto;}
+.editor-tab{ display:flex; align-items:center; gap:6px; padding:0 8px 0 12px; font-size:12px; color:var(--text-2); border-right:1px solid var(--border-0); white-space:nowrap; position:relative; min-width:110px;}
+.editor-tab.active{ color:var(--text-0); background:var(--bg-0);}
+.editor-tab.active::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--accent);}
+.editor-tab .dot-unsaved{ width:6px;height:6px;border-radius:50%; background:var(--accent-strong); display:none;}
+.editor-tab.dirty .dot-unsaved{display:block;}
+.editor-tab .close-x{ width:16px;height:16px; border-radius:4px; display:flex;align-items:center;justify-content:center;}
+.editor-tab .close-x:hover{ background:var(--bg-3);}
+.editor-tab .close-x .msym{font-size:13px;}
+.mode-switch{ margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:2px; padding:0 8px;}
+.mode-switch button{ font-size:11px; font-weight:700; padding:5px 11px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--text-2); display:flex; gap:5px; align-items:center;}
+.mode-switch button.active{ background:var(--accent-soft); color:var(--accent-strong); border-color:var(--border-1);}
+
+#workspace{ flex:1; display:flex; min-height:0; position:relative;}
+#editor-pane{ flex:1 1 auto; min-width:0; position:relative; display:flex; flex-direction:column;}
+#monaco-container{ flex:1; min-height:0;}
+#editor-empty{ flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; color:var(--text-2); gap:8px;}
+#editor-empty .msym{font-size:44px; opacity:.5;}
+
+/* Design (drag & drop) canvas */
+#design-pane{ flex:1; display:none; min-height:0; overflow:hidden;}
+#design-pane.active{ display:flex; }
+#component-palette{ width:132px; flex:0 0 auto; background:var(--bg-1); border-right:1px solid var(--border-0); overflow-y:auto; padding:10px 8px;}
+#component-palette h4{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); margin:4px 4px 8px;}
+.palette-item{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border-radius:var(--radius-sm); border:1px solid var(--border-0); background:var(--bg-2); margin-bottom:8px; cursor:grab; font-size:10px; color:var(--text-1); font-weight:600; text-align:center;}
+.palette-item:hover{ border-color:var(--accent); color:var(--accent-strong);}
+.palette-item .msym{ color:var(--accent-strong); font-size:20px;}
+#canvas-scroll{ flex:1; overflow:auto; background:
+  radial-gradient(circle at 1px 1px, var(--border-0) 1px, transparent 0) ;
+  background-size:18px 18px; padding:26px; display:flex; justify-content:center;}
+#canvas-frame-wrap{ background:var(--bg-1); border:1px solid var(--border-0); border-radius:var(--radius-lg); box-shadow:var(--shadow-2); transition:width var(--transition); width:100%; max-width:920px; overflow:hidden;}
+#canvas-frame-wrap.tablet{ max-width:620px;}
+#canvas-frame-wrap.mobile{ max-width:360px;}
+#canvas-toolbar{ height:30px; background:var(--bg-2); border-bottom:1px solid var(--border-0); display:flex; align-items:center; gap:6px; padding:0 10px;}
+#canvas-toolbar .dot{width:8px;height:8px;border-radius:50%;}
+#app-canvas{ padding:0; min-height:420px; background:#fff; color:#111; }
+#app-canvas.drophover{ outline:2px dashed var(--accent); outline-offset:-2px;}
+#app-canvas [data-rf]{ outline-offset:1px; }
+#app-canvas [data-rf]:hover{ outline:1.5px dashed var(--violet-400); cursor:pointer;}
+#app-canvas [data-rf].selected{ outline:2px solid var(--violet-500) !important; }
+#inspector{ width:216px; flex:0 0 auto; background:var(--bg-1); border-left:1px solid var(--border-0); overflow-y:auto; padding:10px;}
+#inspector h4{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); margin:2px 2px 10px;}
+.insp-field{ margin-bottom:10px;}
+.insp-field label{ display:block; font-size:10.5px; color:var(--text-2); margin-bottom:4px; font-weight:600;}
+.insp-field input[type=text], .insp-field input[type=number], .insp-field select, .insp-field textarea{
+  width:100%; background:var(--bg-2); border:1px solid var(--border-0); color:var(--text-0); border-radius:6px; padding:6px 8px; font-size:12px; outline:none;
+}
+.insp-field textarea{resize:vertical; min-height:50px;}
+.insp-field input[type=color]{ width:100%; height:28px; border-radius:6px; border:1px solid var(--border-0); background:var(--bg-2); padding:2px;}
+.insp-empty{ color:var(--text-2); font-size:11.5px; text-align:center; margin-top:30px; line-height:1.6;}
+.insp-empty .msym{ display:block; margin:0 auto 8px; font-size:30px; opacity:.5;}
+
+/* ---------- Preview ---------- */
+#preview-pane{ width:var(--preview-w); flex:0 0 auto; border-left:1px solid var(--border-0); display:flex; flex-direction:column; background:var(--bg-1); transition:margin-right var(--transition);}
+#preview-pane.collapsed{ margin-right:calc(-1 * var(--preview-w)); }
+#preview-head{ height:34px; flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:0 10px; border-bottom:1px solid var(--border-0); font-size:11px; color:var(--text-2); font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+#preview-head .msym{ font-size:15px;}
+#preview-frame-holder{ flex:1; overflow:auto; display:flex; justify-content:center; padding:14px; background:repeating-linear-gradient(45deg, var(--bg-0) 0 10px, var(--bg-1) 10px 20px);}
+#preview-iframe-box{ background:#fff; width:100%; max-width:100%; border-radius:10px; overflow:hidden; box-shadow:var(--shadow-2); transition:max-width var(--transition);}
+#preview-iframe-box.tablet{max-width:500px;}
+#preview-iframe-box.mobile{max-width:320px;}
+#preview-iframe{ width:100%; height:600px; border:none; display:block; background:#fff;}
+
+/* ---------- Bottom console ---------- */
+#console-panel{ height:150px; flex:0 0 auto; border-top:1px solid var(--border-0); background:var(--bg-1); display:flex; flex-direction:column; transition:height var(--transition);}
+#console-panel.collapsed{ height:30px;}
+#console-head{ height:29px; flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:0 10px; border-bottom:1px solid var(--border-0);}
+#console-head .title{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); display:flex; align-items:center; gap:6px;}
+#console-head .spacer{flex:1;}
+#console-body{ flex:1; overflow:auto; padding:6px 10px; font-family:var(--font-mono); font-size:11.5px; display:flex; flex-direction:column; gap:2px;}
+.log-line{ display:flex; gap:8px; padding:2px 4px; border-radius:4px;}
+.log-line .tag{ flex:0 0 auto; color:var(--text-2);}
+.log-line.error{ color:var(--coral);} .log-line.warn{ color:var(--amber);} .log-line.info{ color:var(--sky);} .log-line.success{color:var(--mint);}
+
+/* ---------- Status bar ---------- */
+#statusbar{ height:var(--statusbar-h); flex:0 0 auto; background:linear-gradient(135deg,var(--violet-700),var(--violet-900)); color:#e9e2ff; display:flex; align-items:center; padding:0 12px; font-size:10.5px; gap:14px;}
+#statusbar .sitem{ display:flex; align-items:center; gap:4px; opacity:.92;}
+#statusbar .msym{font-size:13px;}
+#statusbar .spacer{flex:1;}
+
+/* ---------- Modals ---------- */
+.modal-overlay{ position:fixed; inset:0; background:rgba(6,4,15,.6); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:200; padding:20px;}
+.modal-overlay.open{ display:flex;}
+.modal{ background:var(--bg-1); border:1px solid var(--border-0); border-radius:var(--radius-lg); width:100%; max-width:520px; max-height:86vh; display:flex; flex-direction:column; box-shadow:var(--shadow-2); animation:modalIn .18s cubic-bezier(.4,0,.2,1);}
+.modal.wide{max-width:760px;}
+@keyframes modalIn{ from{ opacity:0; transform:translateY(10px) scale(.98);} to{opacity:1; transform:none;} }
+.modal-head{ display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--border-0); flex:0 0 auto;}
+.modal-head h2{ margin:0; font-size:15.5px; font-weight:800; flex:1; display:flex; align-items:center; gap:8px;}
+.modal-head .msym{ color:var(--accent-strong);}
+.modal-body{ padding:18px; overflow:auto; flex:1;}
+.modal-foot{ padding:14px 18px; border-top:1px solid var(--border-0); display:flex; justify-content:flex-end; gap:8px; flex:0 0 auto;}
+.field{margin-bottom:14px;}
+.field label{ display:block; font-size:11.5px; font-weight:700; color:var(--text-2); margin-bottom:6px; text-transform:uppercase; letter-spacing:.04em;}
+.field input[type=text], .field input[type=number], .field input[type=email], .field input[type=password], .field select, .field textarea{
+  width:100%; background:var(--bg-2); border:1px solid var(--border-0); color:var(--text-0); border-radius:var(--radius-sm); padding:9px 11px; font-size:13px; outline:none; transition:var(--transition);
+}
+.field input:focus, .field select:focus, .field textarea:focus{ border-color:var(--accent);}
+.field-hint{ font-size:10.5px; color:var(--text-2); margin-top:5px;}
+.btn{ padding:9px 16px; border-radius:var(--radius-sm); border:1px solid var(--border-0); background:var(--bg-2); color:var(--text-0); font-weight:700; font-size:12.5px;}
+.btn:hover{ background:var(--bg-3);}
+.btn.primary{ background:linear-gradient(135deg,var(--violet-500),var(--violet-700)); color:#fff; border:none; box-shadow:0 2px 10px rgba(124,58,237,.35);}
+.btn.primary:hover{ filter:brightness(1.08);}
+.btn.danger{ background:var(--coral); border:none; color:#fff;}
+.btn:disabled{opacity:.4;}
+
+.template-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.template-card{ border:1.5px solid var(--border-0); border-radius:var(--radius-md); padding:12px; cursor:pointer; transition:var(--transition);}
+.template-card:hover{ border-color:var(--accent);}
+.template-card.selected{ border-color:var(--accent); background:var(--accent-soft);}
+.template-card .ticon{ width:34px;height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; margin-bottom:8px; color:#fff;}
+.template-card .tname{ font-weight:700; font-size:12.5px;}
+.template-card .tdesc{ font-size:10.5px; color:var(--text-2); margin-top:3px; line-height:1.4;}
+
+/* Build pipeline (signature element) */
+.pipeline{ display:flex; flex-direction:column; gap:0; margin:6px 0 16px;}
+.pipe-step{ display:flex; align-items:center; gap:12px; padding:10px 4px; position:relative;}
+.pipe-step .pnode{ width:30px;height:30px; border-radius:50%; background:var(--bg-3); border:2px solid var(--border-1); display:flex; align-items:center; justify-content:center; flex:0 0 auto; transition:var(--transition); z-index:1;}
+.pipe-step .pnode .msym{font-size:16px; color:var(--text-2);}
+.pipe-step:not(:last-child)::after{ content:""; position:absolute; left:19px; top:38px; width:2px; height:calc(100% - 6px); background:var(--border-1); z-index:0;}
+.pipe-step.done .pnode{ background:var(--mint); border-color:var(--mint);}
+.pipe-step.done .pnode .msym{color:#fff;}
+.pipe-step.done:not(:last-child)::after{ background:var(--mint);}
+.pipe-step.active .pnode{ background:var(--accent); border-color:var(--accent-strong); animation:spinPulse 1.2s infinite;}
+.pipe-step.active .pnode .msym{color:#fff;}
+@keyframes spinPulse{ 0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,.5);} 50%{box-shadow:0 0 0 6px rgba(139,92,246,0);} }
+.pipe-step .ptext{flex:1;}
+.pipe-step .ptitle{font-weight:700; font-size:12.5px;}
+.pipe-step .psub{ font-size:10.5px; color:var(--text-2); margin-top:1px;}
+.pipe-step .pstatus{ font-size:10px; font-weight:700; color:var(--text-2);}
+.pipe-step.done .pstatus{color:var(--mint);}
+.pipe-step.active .pstatus{color:var(--accent-strong);}
+.build-log{ background:var(--bg-0); border:1px solid var(--border-0); border-radius:var(--radius-sm); padding:10px; font-family:var(--font-mono); font-size:11px; color:var(--mint); height:110px; overflow:auto;}
+.build-log div{margin-bottom:2px; color:var(--text-1);}
+.build-log div.ok{color:var(--mint);}
+.progress-track{ height:8px; border-radius:8px; background:var(--bg-3); overflow:hidden; margin:12px 0;}
+.progress-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--violet-500),var(--violet-300)); transition:width .35s ease;}
+
+/* AI Chat drawer */
+#ai-drawer{ position:fixed; right:16px; bottom:16px; width:360px; max-width:92vw; height:480px; background:var(--bg-1); border:1px solid var(--border-0); border-radius:var(--radius-lg); box-shadow:var(--shadow-2); display:none; flex-direction:column; z-index:150; overflow:hidden;}
+#ai-drawer.open{display:flex;}
+#ai-head{ padding:12px 14px; background:linear-gradient(135deg,var(--violet-600),var(--violet-800)); color:#fff; display:flex; align-items:center; gap:8px;}
+#ai-head .abadge{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.18); display:flex;align-items:center;justify-content:center;}
+#ai-head .atitle{font-weight:800; font-size:13px; flex:1;}
+#ai-head .astat{font-size:10px; opacity:.85; display:flex; align-items:center; gap:4px;}
+#ai-messages{ flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px;}
+.chat-msg{ max-width:85%; padding:9px 11px; border-radius:12px; font-size:12.5px; line-height:1.5;}
+.chat-msg.bot{ background:var(--bg-2); border:1px solid var(--border-0); align-self:flex-start; border-bottom-left-radius:3px;}
+.chat-msg.user{ background:linear-gradient(135deg,var(--violet-500),var(--violet-700)); color:#fff; align-self:flex-end; border-bottom-right-radius:3px;}
+#ai-suggest{ display:flex; gap:6px; padding:0 12px 10px; flex-wrap:wrap;}
+.chip{ font-size:10.5px; padding:5px 9px; border-radius:20px; border:1px solid var(--border-1); color:var(--text-2); background:var(--bg-2);}
+.chip:hover{border-color:var(--accent); color:var(--accent-strong);}
+#ai-input-row{ display:flex; gap:6px; padding:10px; border-top:1px solid var(--border-0);}
+#ai-input-row input{ flex:1; background:var(--bg-2); border:1px solid var(--border-0); border-radius:20px; padding:9px 13px; color:var(--text-0); font-size:12.5px; outline:none;}
+#ai-input-row input:focus{border-color:var(--accent);}
+#ai-input-row button{ width:36px;height:36px; border-radius:50%; border:none; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; flex:0 0 auto;}
+#ai-fab{ position:fixed; right:20px; bottom:20px; width:52px;height:52px; border-radius:50%; background:linear-gradient(135deg,var(--violet-500),var(--violet-700)); border:none; color:#fff; box-shadow:0 8px 22px rgba(124,58,237,.5); z-index:140; display:flex; align-items:center; justify-content:center;}
+#ai-fab .msym{font-size:24px;}
+#ai-fab.hide{display:none;}
+
+/* Context menu */
+#ctx-menu{ position:fixed; z-index:300; background:var(--bg-elevated); border:1px solid var(--border-0); border-radius:var(--radius-sm); box-shadow:var(--shadow-2); padding:5px; min-width:160px; display:none;}
+#ctx-menu.open{display:block;}
+.ctx-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:6px; font-size:12.5px; color:var(--text-1);}
+.ctx-item:hover{ background:var(--accent-soft); color:var(--accent-strong);}
+.ctx-item .msym{font-size:15px;}
+.ctx-sep{height:1px; background:var(--border-0); margin:4px 2px;}
+.ctx-item.danger:hover{ background:rgba(244,63,94,.15); color:var(--coral);}
+
+/* Toast */
+#toast-wrap{ position:fixed; top:64px; right:16px; display:flex; flex-direction:column; gap:8px; z-index:400;}
+.toast{ background:var(--bg-elevated); border:1px solid var(--border-0); border-left:3px solid var(--accent); border-radius:8px; padding:10px 14px; font-size:12.5px; box-shadow:var(--shadow-2); display:flex; align-items:center; gap:8px; min-width:220px; animation:toastIn .18s ease;}
+.toast.success{border-left-color:var(--mint);} .toast.error{border-left-color:var(--coral);} .toast.warn{border-left-color:var(--amber);}
+@keyframes toastIn{ from{opacity:0; transform:translateX(20px);} to{opacity:1; transform:none;} }
+
+/* Keyboard shortcuts table */
+.kbd-table{ width:100%; border-collapse:collapse;}
+.kbd-table td{ padding:8px 4px; border-bottom:1px solid var(--border-0); font-size:12.5px;}
+.kbd-table td:last-child{ text-align:right;}
+kbd{ background:var(--bg-3); border:1px solid var(--border-1); border-bottom-width:2px; border-radius:5px; padding:2px 7px; font-family:var(--font-mono); font-size:11px; margin-left:4px;}
+
+/* mobile hint bar (for design system + PWA install) */
+#mobile-bar{ display:none; }
+
+/* Responsive */
+@media (max-width:980px){
+  :root{ --sidebar-w:220px; --preview-w:100%;}
+  #preview-pane{ position:fixed; inset:var(--header-h) 0 0 0; z-index:60; height:calc(100vh - var(--header-h) - var(--statusbar-h));}
+  #preview-pane.collapsed{ display:none; margin:0;}
+  #component-palette{width:96px;}
+  #inspector{width:180px;}
+}
+@media (max-width:700px){
+  #sidebar{ position:fixed; inset:var(--header-h) auto 0 0; z-index:80; width:78vw; height:calc(100vh - var(--header-h) - var(--statusbar-h)); box-shadow:var(--shadow-2);}
+  #sidebar.collapsed{ margin-left:-80vw;}
+  .brand-name{display:none;}
+  #project-name-wrap{max-width:110px;}
+  #project-name-input{width:70px;}
+  .device-toggle{display:none;}
+  #ai-drawer{ width:94vw; right:3vw; height:70vh;}
+  #component-palette{display:none;}
+  #inspector{ position:fixed; right:0; top:var(--header-h); bottom:0; z-index:70; background:var(--bg-1); box-shadow:var(--shadow-2);}
+}
+.hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ===================== HEADER ===================== -->
+  <header id="header">
+    <div class="brand">
+      <div class="brand-mark">R</div>
+      <div class="brand-name">RF<span>Builder</span></div>
+    </div>
+    <button class="hbtn ghost-icon" id="btn-toggle-sidebar" title="Toggle sidebar (Ctrl+B)"><span class="msym">dock_to_right</span></button>
+    <div id="project-name-wrap" title="Project name">
+      <span class="msym">folder_open</span>
+      <input id="project-name-input" value="Untitled Project">
+    </div>
+    <span id="save-status"><span class="dot"></span><span id="save-status-text">Saved</span></span>
+    <div class="divider"></div>
+    <button class="hbtn ghost-icon" id="btn-undo" title="Undo (Ctrl+Z)"><span class="msym">undo</span></button>
+    <button class="hbtn ghost-icon" id="btn-redo" title="Redo (Ctrl+Y)"><span class="msym">redo</span></button>
+    <button class="hbtn ghost-icon" id="btn-format" title="Format code"><span class="msym">auto_fix_high</span></button>
+    <div class="divider"></div>
+    <button class="hbtn" id="btn-new-project" title="New project (Ctrl+Alt+N)"><span class="msym">add_box</span> New</button>
+    <button class="hbtn" id="btn-import-zip" title="Import ZIP"><span class="msym">upload_file</span> Import</button>
+    <button class="hbtn" id="btn-export-zip" title="Export ZIP (Ctrl+E)"><span class="msym">folder_zip</span> Export</button>
+    <input type="file" id="zip-input" accept=".zip" class="hidden">
+    <div id="header-right">
+      <div class="device-toggle" id="device-toggle">
+        <button data-device="desktop" class="active" title="Desktop"><span class="msym fs16">desktop_windows</span></button>
+        <button data-device="tablet" title="Tablet"><span class="msym fs16">tablet_mac</span></button>
+        <button data-device="mobile" title="Mobile"><span class="msym fs16">smartphone</span></button>
+      </div>
+      <button class="hbtn ghost-icon" id="btn-theme" title="Toggle theme"><span class="msym" id="theme-icon">dark_mode</span></button>
+      <button class="hbtn ghost-icon" id="btn-shortcuts" title="Keyboard shortcuts (?)"><span class="msym">keyboard</span></button>
+      <button class="hbtn ghost-icon" id="btn-settings" title="Settings"><span class="msym">settings</span></button>
+      <button class="hbtn primary" id="btn-build-apk" title="Build APK (demo)"><span class="msym">rocket_launch</span> Build APK</button>
+      <button class="avatar-btn" id="btn-account" title="Account">G</button>
+    </div>
+  </header>
+
+  <!-- ===================== BODY ===================== -->
+  <div id="body-row">
+    <!-- ---------------- SIDEBAR ---------------- -->
+    <aside id="sidebar">
+      <div class="side-tabs">
+        <button class="side-tab active" data-panel="files"><span class="msym">folder</span><span class="lbl">Files</span></button>
+        <button class="side-tab" data-panel="assets"><span class="msym">perm_media</span><span class="lbl">Assets</span></button>
+        <button class="side-tab" data-panel="projects"><span class="msym">apps</span><span class="lbl">Projects</span></button>
+        <button class="side-tab" data-panel="plugins"><span class="msym">extension</span><span class="lbl">Plugins</span></button>
+      </div>
+
+      <div class="side-panel active" data-panel="files">
+        <div class="side-panel-head">
+          <h3>Explorer</h3>
+          <div style="display:flex;gap:2px;">
+            <button class="icon-btn" id="btn-new-file" title="New file"><span class="msym fs16">note_add</span></button>
+            <button class="icon-btn" id="btn-new-folder" title="New folder"><span class="msym fs16">create_new_folder</span></button>
+          </div>
+        </div>
+        <div id="file-tree"></div>
+        <div id="sidebar-footer">
+          <button id="btn-templates"><span class="msym fs16">dashboard_customize</span> Templates</button>
+        </div>
+      </div>
+
+      <div class="side-panel" data-panel="assets">
+        <div class="side-panel-head"><h3>Assets</h3><button class="icon-btn" id="btn-asset-upload-h"><span class="msym fs16">add</span></button></div>
+        <div id="asset-drop">
+          <span class="msym">cloud_upload</span>
+          Drag files here or <u>browse</u>
+          <input type="file" id="asset-input" multiple class="hidden">
+        </div>
+        <div id="asset-grid"></div>
+      </div>
+
+      <div class="side-panel" data-panel="projects">
+        <div class="side-panel-head"><h3>Your Projects</h3><button class="icon-btn" id="btn-new-project-2"><span class="msym fs16">add</span></button></div>
+        <div id="project-list"></div>
+      </div>
+
+      <div class="side-panel" data-panel="plugins">
+        <div class="side-panel-head"><h3>Plugin System</h3></div>
+        <div id="plugin-list"></div>
+      </div>
+    </aside>
+
+    <!-- ---------------- MAIN ---------------- -->
+    <main id="main">
+      <div id="tabbar">
+        <div id="tabs-scroll" style="display:flex;"></div>
+        <div class="mode-switch">
+          <button data-mode="code" class="active" id="mode-code"><span class="msym fs16">code</span>Code</button>
+          <button data-mode="design" id="mode-design"><span class="msym fs16">dashboard_customize</span>Design</button>
+        </div>
+      </div>
+
+      <div id="workspace">
+        <div id="editor-pane">
+          <div id="monaco-container"></div>
+          <div id="editor-empty" class="hidden">
+            <span class="msym">description</span>
+            <div>No file open — pick one from Explorer</div>
+          </div>
+        </div>
+
+        <div id="design-pane">
+          <div id="component-palette">
+            <h4>Components</h4>
+            <div class="palette-item" draggable="true" data-comp="heading"><span class="msym">title</span>Heading</div>
+            <div class="palette-item" draggable="true" data-comp="text"><span class="msym">notes</span>Text</div>
+            <div class="palette-item" draggable="true" data-comp="button"><span class="msym">smart_button</span>Button</div>
+            <div class="palette-item" draggable="true" data-comp="image"><span class="msym">image</span>Image</div>
+            <div class="palette-item" draggable="true" data-comp="input"><span class="msym">text_fields</span>Input</div>
+            <div class="palette-item" draggable="true" data-comp="container"><span class="msym">crop_square</span>Container</div>
+            <div class="palette-item" draggable="true" data-comp="link"><span class="msym">link</span>Link</div>
+            <div class="palette-item" draggable="true" data-comp="divider"><span class="msym">horizontal_rule</span>Divider</div>
+          </div>
+          <div id="canvas-scroll">
+            <div id="canvas-frame-wrap">
+              <div id="canvas-toolbar">
+                <div class="dot" style="background:#f43f5e"></div><div class="dot" style="background:#f59e0b"></div><div class="dot" style="background:#22c55e"></div>
+                <span style="margin-left:8px;font-size:10px;color:var(--text-2);font-family:var(--font-mono)">index.html — design mode</span>
+              </div>
+              <div id="app-canvas"></div>
+            </div>
+          </div>
+          <div id="inspector">
+            <h4>Inspector</h4>
+            <div id="inspector-body"><div class="insp-empty"><span class="msym">ads_click</span>Select an element on the canvas to edit its properties</div></div>
+          </div>
+        </div>
+
+        <!-- ---------------- PREVIEW ---------------- -->
+        <div id="preview-pane">
+          <div id="preview-head">
+            <span class="msym">visibility</span> Live Preview
+            <span style="margin-left:auto;display:flex;gap:4px;">
+              <button class="icon-btn" id="btn-refresh-preview" title="Refresh"><span class="msym fs16">refresh</span></button>
+              <button class="icon-btn" id="btn-open-preview" title="Open in new tab"><span class="msym fs16">open_in_new</span></button>
+              <button class="icon-btn" id="btn-collapse-preview" title="Hide preview"><span class="msym fs16">close_fullscreen</span></button>
+            </span>
+          </div>
+          <div id="preview-frame-holder">
+            <div id="preview-iframe-box"><iframe id="preview-iframe" title="Live Preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------------- CONSOLE ---------------- -->
+      <div id="console-panel">
+        <div id="console-head">
+          <span class="title"><span class="msym fs16">terminal</span> Console</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" id="btn-clear-console" title="Clear"><span class="msym fs16">delete_sweep</span></button>
+          <button class="icon-btn" id="btn-toggle-console" title="Toggle"><span class="msym fs16" id="console-toggle-icon">expand_more</span></button>
+        </div>
+        <div id="console-body"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===================== STATUS BAR ===================== -->
+  <footer id="statusbar">
+    <span class="sitem"><span class="msym">wifi_off</span><span id="status-net">Offline-ready</span></span>
+    <span class="sitem"><span class="msym">schedule</span>Auto-save: <span id="status-autosave">on</span></span>
+    <span class="sitem" id="status-lang"><span class="msym">data_object</span>HTML</span>
+    <span class="sitem" id="status-cursor"><span class="msym">edit</span>Ln 1, Col 1</span>
+    <span class="spacer"></span>
+    <span class="sitem"><span class="msym">memory</span>Build Queue: <span id="status-queue">0</span></span>
+    <span class="sitem"><span class="msym">bolt</span>RFBuilder v3.2.0</span>
+  </footer>
+</div>
+
+<!-- ===================== AI CHAT ===================== -->
+<button id="ai-fab" title="AI Assistant"><span class="msym">smart_toy</span></button>
+<div id="ai-drawer">
+  <div id="ai-head">
+    <div class="abadge"><span class="msym fs16">smart_toy</span></div>
+    <div class="atitle">RF Assistant<div class="astat"><span class="msym" style="font-size:9px;">circle</span>Local demo — simulated replies</div></div>
+    <button class="icon-btn" id="btn-close-ai" style="color:#fff;"><span class="msym">close</span></button>
+  </div>
+  <div id="ai-messages"></div>
+  <div id="ai-suggest">
+    <button class="chip" data-q="How do I add a page?">Add a page?</button>
+    <button class="chip" data-q="How do I export my app?">Export app</button>
+    <button class="chip" data-q="Explain the build pipeline">Build pipeline?</button>
+  </div>
+  <div id="ai-input-row">
+    <input id="ai-input" placeholder="Ask RF Assistant…">
+    <button id="btn-ai-send"><span class="msym fs16">send</span></button>
+  </div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<div class="modal-overlay" id="modal-newproject">
+  <div class="modal">
+    <div class="modal-head"><span class="msym">add_box</span><h2>New Project</h2><button class="icon-btn" data-close="modal-newproject"><span class="msym">close</span></button></div>
+    <div class="modal-body">
+      <div class="field"><label>Project name</label><input type="text" id="np-name" placeholder="My Awesome App"></div>
+      <div class="field"><label>Choose a template</label>
+        <div class="template-grid" id="np-templates"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="modal-newproject">Cancel</button><button class="btn primary" id="btn-create-project">Create Project</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <div class="modal-head"><span class="msym">settings</span><h2>Settings</h2><button class="icon-btn" data-close="modal-settings"><span class="msym">close</span></button></div>
+    <div class="modal-body">
+      <div class="field"><label>Theme</label>
+        <select id="set-theme"><option value="dark">Dark</option><option value="light">Light</option></select>
+      </div>
+      <div class="field"><label>Editor font size</label><input type="number" id="set-fontsize" min="10" max="24" value="13"></div>
+      <div class="field"><label>Tab size</label><input type="number" id="set-tabsize" min="2" max="8" value="2"></div>
+      <div class="field"><label>Word wrap</label>
+        <select id="set-wordwrap"><option value="on">On</option><option value="off">Off</option></select>
+      </div>
+      <div class="field"><label>Auto-save interval (seconds)</label><input type="number" id="set-autosave" min="2" max="120" value="8"></div>
+      <div class="field"><label>Minimap</label><select id="set-minimap"><option value="on">On</option><option value="off">Off</option></select></div>
+      <div class="field field-hint" style="margin-top:-4px;">Backend services (Node/Express/SQLite/Supabase/Auth) are simulated locally in this static build — see the <b>Plugins</b> tab and the About section for details.</div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="modal-settings">Close</button><button class="btn primary" id="btn-save-settings">Save Settings</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-shortcuts">
+  <div class="modal">
+    <div class="modal-head"><span class="msym">keyboard</span><h2>Keyboard Shortcuts</h2><button class="icon-btn" data-close="modal-shortcuts"><span class="msym">close</span></button></div>
+    <div class="modal-body">
+      <table class="kbd-table" id="kbd-table"></table>
+    </div>
+    <div class="modal-foot"><button class="btn primary" data-close="modal-shortcuts">Got it</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-apk">
+  <div class="modal wide">
+    <div class="modal-head"><span class="msym">rocket_launch</span><h2>Build APK — Demo Pipeline</h2><button class="icon-btn" data-close="modal-apk"><span class="msym">close</span></button></div>
+    <div class="modal-body">
+      <div class="progress-track"><div class="progress-fill" id="apk-progress-fill"></div></div>
+      <div class="pipeline" id="apk-pipeline"></div>
+      <div class="build-log" id="apk-log"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="modal-apk">Close</button>
+      <button class="btn primary" id="btn-start-build"><span class="msym fs16">play_arrow</span> Start Build</button>
+      <button class="btn primary hidden" id="btn-download-apk"><span class="msym fs16">download</span> Download (Demo)</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-account">
+  <div class="modal">
+    <div class="modal-head"><span class="msym">person</span><h2 id="account-title">Sign in (Demo)</h2><button class="icon-btn" data-close="modal-account"><span class="msym">close</span></button></div>
+    <div class="modal-body">
+      <div id="account-form">
+        <div class="field"><label>Name</label><input type="text" id="acc-name" placeholder="Ada Lovelace"></div>
+        <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="you@example.com"></div>
+        <div class="field field-hint">This authenticates locally only (stored in your browser). No account data leaves your device.</div>
+      </div>
+      <div id="account-info" class="hidden">
+        <div class="field"><label>Signed in as</label><div id="acc-current" style="font-weight:700;"></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn danger hidden" id="btn-signout">Sign out</button>
+      <button class="btn primary" id="btn-signin">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="import-image-fallback" class="hidden">
+<div id="ctx-menu"></div>
+<div id="toast-wrap"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   0. TEMPLATES & CONSTANTS
+   ============================================================ */
+const LS_KEY = 'rfb_projects_v1';
+const LS_ACTIVE = 'rfb_active_project_v1';
+const LS_SETTINGS = 'rfb_settings_v1';
+const LS_ACCOUNT = 'rfb_account_v1';
+const LS_PLUGINS = 'rfb_plugins_v1';
+const LS_QUEUE = 'rfb_queue_v1';
+
+const LANG_BY_EXT = {
+  html:'html', htm:'html', css:'css', js:'javascript', json:'json', xml:'xml',
+  md:'markdown', ts:'typescript', py:'python', txt:'plaintext', svg:'xml', yml:'yaml', yaml:'yaml'
+};
+const ICON_BY_EXT = {
+  html:'html', css:'css', js:'javascript', json:'data_object', xml:'code',
+  md:'article', ts:'javascript', py:'terminal', txt:'description', svg:'image', yml:'settings_suggest', yaml:'settings_suggest'
+};
+
+function extOf(path){ const p = path.split('.'); return p.length>1 ? p.pop().toLowerCase() : ''; }
+function langOf(path){ return LANG_BY_EXT[extOf(path)] || 'plaintext'; }
+function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const TEMPLATES = {
+  blank: {
+    name:'Blank', desc:'Empty canvas, start from scratch', icon:'crop_free', color:'#8b5cf6',
+    files:{
+      'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<title>My App</title>\n<link rel="stylesheet" href="style.css">\n</head>\n<body>\n<!--RFCANVAS_START-->\n<div style="padding:40px;text-align:center;font-family:sans-serif;color:#555;">\n  <h1>Start building 🎨</h1>\n  <p>Drag components from the palette in Design mode, or edit this file in Code mode.</p>\n</div>\n<!--RFCANVAS_END-->\n<script src="script.js"><\/script>\n</body>\n</html>\n`,
+      'style.css': `body{ margin:0; font-family:-apple-system,Segoe UI,Inter,sans-serif; background:#faf9ff; }\n`,
+      'script.js': `console.log("RFBuilder app ready ✅");\n`
+    }
+  },
+  landing:{
+    name:'Landing Page', desc:'Hero, features, CTA', icon:'rocket_launch', color:'#7c3aed',
+    files:{
+      'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<title>Nova — Landing</title>\n<link rel="stylesheet" href="style.css">\n</head>\n<body>\n<!--RFCANVAS_START-->\n<header class="nav" data-rf="container"><div class="logo" data-rf="text">Nova</div><a class="navcta" data-rf="button" href="#">Get Started</a></header>\n<section class="hero" data-rf="container">\n  <h1 data-rf="heading">Build faster. Ship sooner.</h1>\n  <p data-rf="text">Nova helps small teams design, build and launch apps without the busywork.</p>\n  <a class="cta" data-rf="button" href="#">Start free trial</a>\n</section>\n<section class="features" data-rf="container">\n  <div class="feature" data-rf="container"><h3 data-rf="heading">⚡ Fast</h3><p data-rf="text">Optimized from the ground up.</p></div>\n  <div class="feature" data-rf="container"><h3 data-rf="heading">🎨 Flexible</h3><p data-rf="text">Design exactly how you imagine.</p></div>\n  <div class="feature" data-rf="container"><h3 data-rf="heading">🔒 Secure</h3><p data-rf="text">Your data, protected by default.</p></div>\n</section>\n<!--RFCANVAS_END-->\n<script src="script.js"><\/script>\n</body>\n</html>\n`,
+      'style.css': `:root{--v:#7c3aed;--ink:#1c1530;}\n*{box-sizing:border-box;}\nbody{margin:0;font-family:-apple-system,Segoe UI,Inter,sans-serif;color:var(--ink);}\n.nav{display:flex;align-items:center;justify-content:space-between;padding:18px 40px;}\n.logo{font-weight:800;font-size:20px;color:var(--v);}\n.navcta{background:var(--v);color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;}\n.hero{text-align:center;padding:70px 20px;background:linear-gradient(180deg,#f5f3ff,#fff);}\n.hero h1{font-size:40px;margin:0 0 14px;}\n.hero p{color:#6a6285;max-width:520px;margin:0 auto 26px;}\n.cta{background:var(--v);color:#fff;padding:13px 26px;border-radius:10px;text-decoration:none;font-weight:700;}\n.features{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;padding:50px 40px;}\n.feature{background:#f7f5ff;border-radius:14px;padding:22px;}\n`,
+      'script.js': `console.log("Landing page loaded");\n`
+    }
+  },
+  portfolio:{
+    name:'Portfolio', desc:'Personal showcase site', icon:'palette', color:'#a78bfa',
+    files:{
+      'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8"><title>Portfolio</title><link rel="stylesheet" href="style.css"></head>\n<body>\n<!--RFCANVAS_START-->\n<div class="wrap" data-rf="container">\n  <h1 data-rf="heading">Hi, I'm Alex 👋</h1>\n  <p data-rf="text">Product designer crafting delightful interfaces.</p>\n  <div class="grid" data-rf="container">\n    <div class="card" data-rf="container"><h3 data-rf="heading">Project One</h3><p data-rf="text">A mobile banking redesign.</p></div>\n    <div class="card" data-rf="container"><h3 data-rf="heading">Project Two</h3><p data-rf="text">An e-commerce experience.</p></div>\n  </div>\n</div>\n<!--RFCANVAS_END-->\n<script src="script.js"><\/script>\n</body></html>\n`,
+      'style.css': `body{font-family:Inter,sans-serif;background:#111;color:#eee;margin:0;}\n.wrap{max-width:760px;margin:0 auto;padding:60px 24px;}\n.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px;}\n.card{background:#1c1c22;border-radius:14px;padding:20px;border:1px solid #2a2a33;}\n`,
+      'script.js': `console.log("Portfolio ready");\n`
+    }
+  },
+  login:{
+    name:'Login Form', desc:'Auth screen starter', icon:'lock', color:'#38bdf8',
+    files:{
+      'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8"><title>Sign In</title><link rel="stylesheet" href="style.css"></head>\n<body>\n<!--RFCANVAS_START-->\n<div class="authbox" data-rf="container">\n  <h2 data-rf="heading">Welcome back</h2>\n  <input data-rf="input" placeholder="Email" type="text">\n  <input data-rf="input" placeholder="Password" type="text">\n  <a class="btn" data-rf="button" href="#">Sign In</a>\n</div>\n<!--RFCANVAS_END-->\n<script src="script.js"><\/script>\n</body></html>\n`,
+      'style.css': `body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#efeafc;font-family:Inter,sans-serif;}\n.authbox{background:#fff;padding:34px;border-radius:16px;width:280px;box-shadow:0 12px 30px rgba(90,60,160,.15);}\n.authbox input{width:100%;padding:10px 12px;margin-bottom:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box;}\n.authbox .btn{display:block;text-align:center;background:#7c3aed;color:#fff;padding:11px;border-radius:9px;text-decoration:none;font-weight:700;}\n`,
+      'script.js': `console.log("Login screen ready");\n`
+    }
+  },
+  dashboard:{
+    name:'Dashboard', desc:'Admin panel layout', icon:'space_dashboard', color:'#22c55e',
+    files:{
+      'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8"><title>Dashboard</title><link rel="stylesheet" href="style.css"></head>\n<body>\n<!--RFCANVAS_START-->\n<div class="shell" data-rf="container">\n  <aside class="side" data-rf="container"><h3 data-rf="heading">Menu</h3><p data-rf="text">Overview</p><p data-rf="text">Reports</p><p data-rf="text">Settings</p></aside>\n  <main class="content" data-rf="container">\n    <h1 data-rf="heading">Overview</h1>\n    <div class="cards" data-rf="container">\n      <div class="stat" data-rf="container"><h3 data-rf="heading">1,204</h3><p data-rf="text">Users</p></div>\n      <div class="stat" data-rf="container"><h3 data-rf="heading">$8,430</h3><p data-rf="text">Revenue</p></div>\n    </div>\n  </main>\n</div>\n<!--RFCANVAS_END-->\n<script src="script.js"><\/script>\n</body></html>\n`,
+      'style.css': `*{box-sizing:border-box;}body{margin:0;font-family:Inter,sans-serif;}\n.shell{display:flex;min-height:100vh;}\n.side{width:180px;background:#1d1832;color:#fff;padding:20px;}\n.content{flex:1;padding:26px;background:#f7f5fc;}\n.cards{display:flex;gap:14px;margin-top:16px;}\n.stat{background:#fff;border-radius:12px;padding:18px 22px;box-shadow:0 4px 14px rgba(0,0,0,.06);}\n`,
+      'script.js': `console.log("Dashboard ready");\n`
+    }
+  }
+};
+
+const DEFAULT_PLUGINS = [
+  {id:'formatter', name:'Code Formatter', icon:'auto_fix_high', desc:'Adds a one-click Format Code action to the toolbar. Fully functional.', enabled:true, real:true},
+  {id:'firebase', name:'Firebase Connector', icon:'local_fire_department', desc:'Sync data to a Firebase backend. Requires a hosted deployment & API keys.', enabled:false, real:false},
+  {id:'push', name:'Push Notifications', icon:'notifications_active', desc:'Send push notifications to installed apps via FCM. Requires a backend.', enabled:false, real:false},
+  {id:'analytics', name:'Analytics', icon:'monitoring', desc:'Track screen views & events. Requires a hosted deployment.', enabled:false, real:false},
+  {id:'iap', name:'In-App Purchases', icon:'payments', desc:'Sell digital goods inside your app. Requires Play/App Store integration.', enabled:false, real:false},
+  {id:'darkpro', name:'Dark Mode Pro', icon:'dark_mode', desc:'Adds an extra AMOLED-black theme variant to the preview.', enabled:false, real:true}
+];
+
+const SHORTCUTS = [
+  ['Save project', 'Ctrl + S'], ['New project', 'Ctrl + Alt + N'], ['Export ZIP', 'Ctrl + E'],
+  ['Toggle sidebar', 'Ctrl + B'], ['Toggle theme', 'Ctrl + J'], ['Undo', 'Ctrl + Z'], ['Redo', 'Ctrl + Y'],
+  ['Format code', 'Shift + Alt + F'], ['Toggle Design/Code', 'Ctrl + D'], ['Open AI Assistant', 'Ctrl + K'],
+  ['Close active tab', 'Ctrl + W'], ['Command: Build APK', 'Ctrl + Shift + B'], ['Show shortcuts', '?']
+];
+
+/* ============================================================
+   1. STATE
+   ============================================================ */
+const State = {
+  projects: {},
+  activeProjectId: null,
+  openTabs: [],
+  activeTab: null,
+  editor: null,
+  models: {},
+  theme: 'dark',
+  settings: { fontSize:13, tabSize:2, wordWrap:'on', autoSave:8, minimap:'on' },
+  plugins: [],
+  device: 'desktop',
+  mode: 'code',
+  selectedNode: null,
+  buildQueue: [],
+  account: null,
+  dirty: false,
+  undoStack: [],
+  redoStack: []
+};
+
+/* ============================================================
+   2. PERSISTENCE
+   ============================================================ */
+function loadAll(){
+  try{ State.projects = JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch(e){ State.projects = {}; }
+  if(Object.keys(State.projects).length === 0){
+    const id = uid();
+    State.projects[id] = makeProject('My First App', 'blank', id);
+    State.activeProjectId = id;
+  } else {
+    State.activeProjectId = localStorage.getItem(LS_ACTIVE) || Object.keys(State.projects)[0];
+  }
+  try{ State.settings = Object.assign(State.settings, JSON.parse(localStorage.getItem(LS_SETTINGS))||{}); }catch(e){}
+  State.theme = State.settings.theme || (matchMedia('(prefers-color-scheme:light)').matches ? 'light':'dark');
+  try{ State.plugins = JSON.parse(localStorage.getItem(LS_PLUGINS)) || JSON.parse(JSON.stringify(DEFAULT_PLUGINS)); }catch(e){ State.plugins = JSON.parse(JSON.stringify(DEFAULT_PLUGINS)); }
+  try{ State.account = JSON.parse(localStorage.getItem(LS_ACCOUNT)) || null; }catch(e){ State.account = null; }
+  try{ State.buildQueue = JSON.parse(localStorage.getItem(LS_QUEUE)) || []; }catch(e){ State.buildQueue = []; }
+}
+function persistProjects(){ localStorage.setItem(LS_KEY, JSON.stringify(State.projects)); localStorage.setItem(LS_ACTIVE, State.activeProjectId); }
+function persistSettings(){ State.settings.theme = State.theme; localStorage.setItem(LS_SETTINGS, JSON.stringify(State.settings)); }
+function persistPlugins(){ localStorage.setItem(LS_PLUGINS, JSON.stringify(State.plugins)); }
+function persistAccount(){ localStorage.setItem(LS_ACCOUNT, JSON.stringify(State.account)); }
+function persistQueue(){ localStorage.setItem(LS_QUEUE, JSON.stringify(State.buildQueue.slice(-12))); }
+
+function makeProject(name, templateKey, id){
+  const tpl = TEMPLATES[templateKey] || TEMPLATES.blank;
+  return { id, name, template:templateKey, createdAt:Date.now(), updatedAt:Date.now(), files: JSON.parse(JSON.stringify(tpl.files)), assets: [] };
+}
+function currentProject(){ return State.projects[State.activeProjectId]; }
+
+function markDirty(){ State.dirty = true; setSaveStatus(true); scheduleAutoSave(); }
+let autoSaveTimer = null;
+function scheduleAutoSave(){
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(saveNow, Math.max(2, State.settings.autoSave||8) * 1000);
+}
+function saveNow(){
+  const p = currentProject(); if(!p) return;
+  p.updatedAt = Date.now();
+  persistProjects();
+  State.dirty = false;
+  setSaveStatus(false);
+}
+function setSaveStatus(saving){
+  const el = document.getElementById('save-status');
+  const txt = document.getElementById('save-status-text');
+  if(saving){ el.classList.add('saving'); txt.textContent = 'Saving…'; }
+  else { el.classList.remove('saving'); txt.textContent = 'Saved'; }
+}
+
+/* ============================================================
+   3. TOASTS
+   ============================================================ */
+function toast(msg, type){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' '+type : '');
+  const icon = type==='success'?'check_circle':type==='error'?'error':type==='warn'?'warning':'info';
+  el.innerHTML = `<span class="msym fs16">${icon}</span><span>${escapeHtml(msg)}</span>`;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='.2s'; setTimeout(()=>el.remove(),200); }, 3200);
+}
+
+/* ============================================================
+   4. FILE TREE
+   ============================================================ */
+function buildTree(files){
+  const root = {__folder:true, children:{}};
+  Object.keys(files).sort().forEach(path=>{
+    const parts = path.split('/');
+    let node = root;
+    parts.forEach((part,i)=>{
+      if(i === parts.length-1){
+        node.children[part] = {__folder:false, path};
+      } else {
+        node.children[part] = node.children[part] || {__folder:true, children:{}};
+        node = node.children[part];
+      }
+    });
+  });
+  return root;
+}
+function renderFileTree(){
+  const p = currentProject(); if(!p) return;
+  const container = document.getElementById('file-tree');
+  container.innerHTML = '';
+  const tree = buildTree(p.files);
+  renderTreeLevel(tree, container);
+}
+function renderTreeLevel(node, container){
+  const folders = Object.keys(node.children).filter(k=>node.children[k].__folder).sort();
+  const files = Object.keys(node.children).filter(k=>!node.children[k].__folder).sort();
+  folders.forEach(name=>{
+    const child = node.children[name];
+    const row = document.createElement('div');
+    row.className = 'tree-folder-row';
+    row.innerHTML = `<span class="msym">folder</span><span>${escapeHtml(name)}</span>`;
+    const kids = document.createElement('div');
+    kids.className = 'tree-children';
+    renderTreeLevel(child, kids);
+    row.addEventListener('click', ()=>{ kids.style.display = kids.style.display==='none' ? '' : 'none'; });
+    container.appendChild(row);
+    container.appendChild(kids);
+  });
+  files.forEach(name=>{
+    const child = node.children[name];
+    const row = document.createElement('div');
+    row.className = 'tree-node' + (child.path === State.activeTab ? ' active' : '');
+    const ext = extOf(name);
+    row.innerHTML = `<span class="msym">${ICON_BY_EXT[ext]||'description'}</span><span>${escapeHtml(name)}</span>${ext?`<span class="ext-badge">${ext}</span>`:''}`;
+    row.addEventListener('click', ()=> openFile(child.path));
+    row.addEventListener('contextmenu', (e)=>{ e.preventDefault(); showFileContextMenu(e, child.path); });
+    container.appendChild(row);
+  });
+}
+
+function showFileContextMenu(e, path){
+  const menu = document.getElementById('ctx-menu');
+  menu.innerHTML = `
+    <div class="ctx-item" data-act="rename"><span class="msym">edit</span>Rename</div>
+    <div class="ctx-item" data-act="duplicate"><span class="msym">content_copy</span>Duplicate</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item danger" data-act="delete"><span class="msym">delete</span>Delete</div>`;
+  positionCtx(menu, e);
+  menu.querySelectorAll('.ctx-item').forEach(it=>{
+    it.onclick = ()=>{
+      const act = it.dataset.act;
+      if(act==='rename') renameFilePrompt(path);
+      if(act==='duplicate') duplicateFile(path);
+      if(act==='delete') deleteFile(path);
+      closeCtx();
+    };
+  });
+}
+function positionCtx(menu, e){
+  menu.style.left = e.clientX+'px'; menu.style.top = e.clientY+'px'; menu.classList.add('open');
+}
+function closeCtx(){ document.getElementById('ctx-menu').classList.remove('open'); }
+document.addEventListener('click', (e)=>{ if(!e.target.closest('#ctx-menu')) closeCtx(); });
+
+function renameFilePrompt(path){
+  const nn = prompt('Rename file', path);
+  if(!nn || nn===path) return;
+  const p = currentProject();
+  if(p.files[nn]){ toast('A file with that name already exists','error'); return; }
+  p.files[nn] = p.files[path];
+  delete p.files[path];
+  const idx = State.openTabs.indexOf(path);
+  if(idx>-1) State.openTabs[idx] = nn;
+  if(State.activeTab===path) State.activeTab = nn;
+  if(State.models[path]){ State.models[nn]=State.models[path]; delete State.models[path]; }
+  markDirty(); renderFileTree(); renderTabs(); openFile(nn);
+}
+function duplicateFile(path){
+  const p = currentProject();
+  let base = path.replace(/(\.[^.]+)?$/, m=>'-copy'+m);
+  let n=1; while(p.files[base]){ base = path.replace(/(\.[^.]+)?$/, m=>`-copy${n++}${m}`); }
+  p.files[base] = p.files[path];
+  markDirty(); renderFileTree(); toast('File duplicated','success');
+}
+function deleteFile(path){
+  if(!confirm('Delete "'+path+'"? This cannot be undone.')) return;
+  const p = currentProject();
+  delete p.files[path];
+  closeTab(path);
+  markDirty(); renderFileTree(); updatePreview();
+  toast('File deleted','warn');
+}
+document.getElementById('btn-new-file').addEventListener('click', ()=>{
+  const name = prompt('New file name (e.g. about.html, data.json)');
+  if(!name) return;
+  const p = currentProject();
+  if(p.files[name]){ toast('File already exists','error'); return; }
+  p.files[name] = '';
+  markDirty(); renderFileTree(); openFile(name);
+});
+document.getElementById('btn-new-folder').addEventListener('click', ()=>{
+  const name = prompt('New folder name (e.g. pages)');
+  if(!name) return;
+  const p = currentProject();
+  const placeholder = name.replace(/\/$/,'') + '/.keep';
+  p.files[placeholder] = '';
+  markDirty(); renderFileTree();
+});
+
+/* ============================================================
+   5. MONACO EDITOR
+   ============================================================ */
+function initMonaco(cb){
+  require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+  require(['vs/editor/editor.main'], function(){
+    monaco.editor.defineTheme('rfb-dark', {
+      base:'vs-dark', inherit:true, rules:[], colors:{
+        'editor.background':'#0e0b1a', 'editor.lineHighlightBackground':'#1d1832',
+        'editorLineNumber.foreground':'#584d80', 'editorGutter.background':'#0e0b1a',
+        'editor.selectionBackground':'#7c3aed44'
+      }
+    });
+    monaco.editor.defineTheme('rfb-light', {
+      base:'vs', inherit:true, rules:[], colors:{ 'editor.background':'#ffffff' }
+    });
+    State.editor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value:'', language:'html', theme: State.theme==='dark' ? 'rfb-dark':'rfb-light',
+      fontFamily:"'JetBrains Mono', monospace", fontSize:State.settings.fontSize, tabSize:State.settings.tabSize,
+      wordWrap:State.settings.wordWrap, minimap:{enabled:State.settings.minimap==='on'}, automaticLayout:true,
+      scrollBeyondLastLine:false, smoothScrolling:true, cursorBlinking:'smooth', padding:{top:14}
+    });
+    State.editor.onDidChangeModelContent(()=>{
+      if(!State.activeTab) return;
+      const p = currentProject();
+      p.files[State.activeTab] = State.editor.getValue();
+      markDirty(); markTabDirty(State.activeTab, false);
+      debouncedPreview();
+    });
+    State.editor.onDidChangeCursorPosition((e)=>{
+      document.getElementById('status-cursor').innerHTML = `<span class="msym">edit</span>Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+    });
+    cb && cb();
+  });
+}
+function modelFor(path){
+  const p = currentProject();
+  if(!State.models[path]){
+    const uri = monaco.Uri.parse('file:///' + p.id + '/' + path);
+    State.models[path] = monaco.editor.getModel(uri) || monaco.editor.createModel(p.files[path]||'', langOf(path), uri);
+  }
+  return State.models[path];
+}
+function disposeModels(){
+  Object.values(State.models).forEach(m=>{ try{ m.dispose(); }catch(e){} });
+  State.models = {};
+}
+
+/* ============================================================
+   6. TABS
+   ============================================================ */
+function openFile(path){
+  const p = currentProject(); if(!p || !(path in p.files)) return;
+  if(!State.openTabs.includes(path)) State.openTabs.push(path);
+  State.activeTab = path;
+  State.mode = 'code'; setMode('code');
+  document.getElementById('editor-empty').classList.add('hidden');
+  document.getElementById('monaco-container').style.display='';
+  if(State.editor){
+    const model = modelFor(path);
+    State.editor.setModel(model);
+    document.getElementById('status-lang').innerHTML = `<span class="msym">data_object</span>${langOf(path).toUpperCase()}`;
+  }
+  renderTabs(); renderFileTree();
+}
+function renderTabs(){
+  const scroll = document.getElementById('tabs-scroll');
+  scroll.innerHTML = '';
+  State.openTabs.forEach(path=>{
+    const tab = document.createElement('div');
+    tab.className = 'editor-tab' + (path===State.activeTab?' active':'');
+    tab.innerHTML = `<span class="msym fs16">${ICON_BY_EXT[extOf(path)]||'description'}</span><span>${escapeHtml(path.split('/').pop())}</span><span class="dot-unsaved"></span><span class="close-x"><span class="msym">close</span></span>`;
+    tab.addEventListener('click', (e)=>{ if(!e.target.closest('.close-x')) openFile(path); });
+    tab.querySelector('.close-x').addEventListener('click', (e)=>{ e.stopPropagation(); closeTab(path); });
+    scroll.appendChild(tab);
+  });
+  if(!State.activeTab){
+    document.getElementById('editor-empty').classList.remove('hidden');
+    document.getElementById('monaco-container').style.display='none';
+  }
+}
+function markTabDirty(){ /* visual dirty dot kept simple/no-op since autosave is fast */ }
+function closeTab(path){
+  const idx = State.openTabs.indexOf(path);
+  if(idx>-1) State.openTabs.splice(idx,1);
+  if(State.activeTab === path){
+    State.activeTab = State.openTabs[idx] || State.openTabs[idx-1] || null;
+    if(State.activeTab) openFile(State.activeTab); else renderTabs();
+  } else renderTabs();
+}
+
+/* ============================================================
+   7. PREVIEW
+   ============================================================ */
+let previewTimer = null;
+function debouncedPreview(){ clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 260); }
+
+function buildPreviewDoc(){
+  const p = currentProject(); if(!p) return '<!doctype html><html><body></body></html>';
+  let html = p.files['index.html'] || Object.values(p.files).find(f=>false) || '<!doctype html><html><body><p>No index.html found.</p></body></html>';
+  // inline all css files referenced by <link> and all sibling css files not referenced
+  let styles = '';
+  Object.keys(p.files).forEach(path=>{
+    if(extOf(path)==='css'){ styles += `\n/* ${path} */\n` + p.files[path]; }
+  });
+  let scripts = '';
+  Object.keys(p.files).forEach(path=>{
+    if(extOf(path)==='js'){ scripts += `\n// ${path}\n` + p.files[path]; }
+  });
+  // strip existing link/script tags referencing local files (avoid 404s in sandboxed iframe), keep external ones
+  html = html.replace(/<link[^>]+rel=["']stylesheet["'][^>]*>/gi, m => /https?:\/\//.test(m) ? m : '');
+  html = html.replace(/<script[^>]+src=["'][^"']+["'][^>]*><\/script>/gi, m => /https?:\/\//.test(m) ? m : '');
+  // resolve asset references (data urls) for asset filenames used as src/href
+  (p.assets||[]).forEach(a=>{
+    const re = new RegExp('(["\'(])'+a.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(["\')])','g');
+    html = html.replace(re, `$1${a.data}$2`);
+  });
+  const consoleBridge = `<script>(function(){function send(type,args){try{parent.postMessage({__rfb_console:true,type:type,args:args.map(function(a){try{return typeof a==='object'?JSON.stringify(a):String(a);}catch(e){return String(a);}})},'*');}catch(e){}}['log','info','warn','error'].forEach(function(k){var orig=console[k];console[k]=function(){send(k,Array.prototype.slice.call(arguments));orig.apply(console,arguments);};});window.onerror=function(msg,src,line,col){send('error',[msg+' (line '+line+')']);};})();<\/script>`;
+  const injected = consoleBridge + `<style>${styles}<\/style>`;
+  if(/<\/head>/i.test(html)) html = html.replace(/<\/head>/i, injected+'</head>');
+  else html = injected + html;
+  const scriptTag = `<script>${scripts}<\/script>`;
+  if(/<\/body>/i.test(html)) html = html.replace(/<\/body>/i, scriptTag+'</body>');
+  else html += scriptTag;
+  return html;
+}
+function updatePreview(){
+  const iframe = document.getElementById('preview-iframe');
+  iframe.srcdoc = buildPreviewDoc();
+}
+window.addEventListener('message', (e)=>{
+  if(e.data && e.data.__rfb_console){ logToConsole(e.data.type, e.data.args.join(' ')); }
+});
+document.getElementById('btn-refresh-preview').addEventListener('click', updatePreview);
+document.getElementById('btn-open-preview').addEventListener('click', ()=>{
+  const w = window.open('', '_blank'); w.document.open(); w.document.write(buildPreviewDoc()); w.document.close();
+});
+document.getElementById('btn-collapse-preview').addEventListener('click', ()=>{
+  document.getElementById('preview-pane').classList.toggle('collapsed');
+});
+
+/* ============================================================
+   8. CONSOLE
+   ============================================================ */
+function logToConsole(type, msg){
+  const body = document.getElementById('console-body');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + (type||'info');
+  const tagIcon = {log:'terminal', info:'info', warn:'warning', error:'error', success:'check_circle'}[type] || 'terminal';
+  line.innerHTML = `<span class="tag"><span class="msym fs16">${tagIcon}</span></span><span>${escapeHtml(msg)}</span>`;
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+document.getElementById('btn-clear-console').addEventListener('click', ()=>{ document.getElementById('console-body').innerHTML=''; });
+document.getElementById('btn-toggle-console').addEventListener('click', ()=>{
+  const panel = document.getElementById('console-panel');
+  panel.classList.toggle('collapsed');
+  document.getElementById('console-toggle-icon').textContent = panel.classList.contains('collapsed') ? 'expand_less' : 'expand_more';
+});
+
+/* ============================================================
+   9. DESIGN MODE (drag & drop canvas)
+   ============================================================ */
+const COMPONENT_HTML = {
+  heading: `<h2 data-rf="heading" style="font-family:sans-serif;margin:12px;">New Heading</h2>`,
+  text: `<p data-rf="text" style="font-family:sans-serif;margin:12px;color:#444;">Editable paragraph text — double click to edit.</p>`,
+  button: `<a href="#" data-rf="button" style="display:inline-block;margin:12px;padding:10px 18px;background:#7c3aed;color:#fff;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:700;">Click Me</a>`,
+  image: `<img data-rf="image" src="https://placehold.co/320x160/7c3aed/ffffff?text=Image" style="margin:12px;max-width:90%;border-radius:8px;">`,
+  input: `<input data-rf="input" placeholder="Type here…" style="margin:12px;padding:10px 12px;border:1px solid #ccc;border-radius:8px;font-family:sans-serif;display:block;">`,
+  container: `<div data-rf="container" style="margin:12px;padding:20px;border:1.5px dashed #bbb;border-radius:10px;min-height:60px;">Container — drop items here</div>`,
+  link: `<a href="#" data-rf="link" style="margin:12px;display:inline-block;color:#7c3aed;font-family:sans-serif;">Link text</a>`,
+  divider: `<hr data-rf="divider" style="margin:16px 12px;border:none;border-top:1px solid #ddd;">`
+};
+function setMode(mode){
+  State.mode = mode;
+  document.getElementById('mode-code').classList.toggle('active', mode==='code');
+  document.getElementById('mode-design').classList.toggle('active', mode==='design');
+  document.getElementById('editor-pane').style.display = mode==='code' ? 'flex' : 'none';
+  document.getElementById('design-pane').classList.toggle('active', mode==='design');
+  if(mode==='design') loadCanvasFromHtml();
+  else if(mode==='code'){ /* nothing extra */ }
+}
+document.getElementById('mode-code').addEventListener('click', ()=>{ syncCanvasToHtml(); setMode('code'); });
+document.getElementById('mode-design').addEventListener('click', ()=>{ setMode('design'); });
+
+function loadCanvasFromHtml(){
+  const p = currentProject();
+  let html = p.files['index.html'] || '';
+  const m = html.match(/<!--RFCANVAS_START-->([\s\S]*?)<!--RFCANVAS_END-->/);
+  const canvas = document.getElementById('app-canvas');
+  canvas.innerHTML = m ? m[1] : '<div style="padding:40px;color:#999;font-family:sans-serif;text-align:center;">No &lt;!--RFCANVAS_START--&gt; markers found in index.html.<br>Switch to Code mode to add them, or start from a template.</div>';
+  attachCanvasHandlers();
+}
+function syncCanvasToHtml(){
+  const p = currentProject();
+  if(!p.files['index.html']) return;
+  const canvas = document.getElementById('app-canvas');
+  const inner = canvas.innerHTML;
+  let html = p.files['index.html'];
+  if(/<!--RFCANVAS_START-->[\s\S]*?<!--RFCANVAS_END-->/.test(html)){
+    html = html.replace(/<!--RFCANVAS_START-->[\s\S]*?<!--RFCANVAS_END-->/, `<!--RFCANVAS_START-->\n${inner}\n<!--RFCANVAS_END-->`);
+    p.files['index.html'] = html;
+    if(State.models['index.html']) State.models['index.html'].setValue(html);
+    markDirty(); debouncedPreview();
+  }
+}
+function attachCanvasHandlers(){
+  const canvas = document.getElementById('app-canvas');
+  canvas.querySelectorAll('[data-rf]').forEach(el=>{
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectNode(el); });
+    el.addEventListener('dblclick', (e)=>{
+      e.stopPropagation();
+      if(['heading','text','button','link'].includes(el.dataset.rf)){
+        el.contentEditable = true; el.focus();
+        el.addEventListener('blur', function onBlur(){ el.contentEditable=false; el.removeEventListener('blur',onBlur); syncCanvasToHtml(); }, {once:true});
+      }
+    });
+  });
+  canvas.addEventListener('click', ()=> selectNode(null));
+}
+function selectNode(el){
+  document.querySelectorAll('#app-canvas [data-rf].selected').forEach(n=>n.classList.remove('selected'));
+  State.selectedNode = el;
+  if(el) el.classList.add('selected');
+  renderInspector();
+}
+function renderInspector(){
+  const body = document.getElementById('inspector-body');
+  const el = State.selectedNode;
+  if(!el){ body.innerHTML = '<div class="insp-empty"><span class="msym">ads_click</span>Select an element on the canvas to edit its properties</div>'; return; }
+  const type = el.dataset.rf;
+  const bg = rgbToHex(el.style.backgroundColor) || '#ffffff';
+  const color = rgbToHex(el.style.color) || '#111111';
+  const hasText = ['heading','text','button','link'].includes(type);
+  body.innerHTML = `
+    <div class="insp-field"><label>Element</label><input type="text" value="${type}" disabled></div>
+    ${hasText?`<div class="insp-field"><label>Text</label><textarea id="insp-text">${escapeHtml(el.textContent)}</textarea></div>`:''}
+    ${type==='image'?`<div class="insp-field"><label>Image URL</label><input type="text" id="insp-src" value="${el.getAttribute('src')||''}"></div>`:''}
+    ${(type==='button'||type==='link')?`<div class="insp-field"><label>Link URL (href)</label><input type="text" id="insp-href" value="${el.getAttribute('href')||'#'}"></div>`:''}
+    <div class="insp-field"><label>Background color</label><input type="color" id="insp-bg" value="${bg}"></div>
+    ${hasText?`<div class="insp-field"><label>Text color</label><input type="color" id="insp-color" value="${color}"></div>`:''}
+    <div class="insp-field"><label>Padding (px)</label><input type="number" id="insp-padding" value="${parseInt(el.style.padding)||0}"></div>
+    <div class="insp-field"><label>Font size (px)</label><input type="number" id="insp-fontsize" value="${parseInt(el.style.fontSize)||16}"></div>
+    <div class="insp-field"><label>Alignment</label><select id="insp-align"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+    <button class="btn danger" id="insp-delete" style="width:100%;margin-top:6px;"><span class="msym fs16">delete</span> Delete element</button>
+  `;
+  const align = el.style.textAlign || 'left';
+  const sel = document.getElementById('insp-align'); if(sel) sel.value = align;
+  bindInsp('insp-text', v=>{ el.textContent = v; });
+  bindInsp('insp-src', v=>{ el.setAttribute('src', v); });
+  bindInsp('insp-href', v=>{ el.setAttribute('href', v); });
+  bindInsp('insp-bg', v=>{ el.style.backgroundColor = v; });
+  bindInsp('insp-color', v=>{ el.style.color = v; });
+  bindInsp('insp-padding', v=>{ el.style.padding = v+'px'; });
+  bindInsp('insp-fontsize', v=>{ el.style.fontSize = v+'px'; });
+  bindInsp('insp-align', v=>{ el.style.textAlign = v; });
+  const delBtn = document.getElementById('insp-delete');
+  if(delBtn) delBtn.addEventListener('click', ()=>{ el.remove(); selectNode(null); syncCanvasToHtml(); });
+}
+function bindInsp(id, fn){
+  const el = document.getElementById(id); if(!el) return;
+  el.addEventListener('input', ()=>{ fn(el.value); syncCanvasToHtml(); });
+}
+function rgbToHex(rgb){
+  if(!rgb) return null;
+  const m = rgb.match(/\d+/g); if(!m) return null;
+  return '#' + m.slice(0,3).map(x=>(+x).toString(16).padStart(2,'0')).join('');
+}
+// palette drag & drop
+document.querySelectorAll('.palette-item').forEach(item=>{
+  item.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/rf-component', item.dataset.comp); });
+});
+const appCanvasEl = document.getElementById('app-canvas');
+appCanvasEl.addEventListener('dragover', (e)=>{ e.preventDefault(); appCanvasEl.classList.add('drophover'); });
+appCanvasEl.addEventListener('dragleave', ()=> appCanvasEl.classList.remove('drophover'));
+appCanvasEl.addEventListener('drop', (e)=>{
+  e.preventDefault(); appCanvasEl.classList.remove('drophover');
+  const comp = e.dataTransfer.getData('text/rf-component');
+  if(!comp) return;
+  const wrap = document.createElement('div'); wrap.innerHTML = COMPONENT_HTML[comp];
+  const node = wrap.firstElementChild;
+  appCanvasEl.appendChild(node);
+  attachCanvasHandlers();
+  syncCanvasToHtml();
+  selectNode(node);
+  toast('Component added','success');
+});
+
+/* ============================================================
+   10. ASSETS
+   ============================================================ */
+function renderAssets(){
+  const p = currentProject(); if(!p) return;
+  const grid = document.getElementById('asset-grid');
+  grid.innerHTML = '';
+  (p.assets||[]).forEach(a=>{
+    const card = document.createElement('div'); card.className='asset-card';
+    const isImg = a.type && a.type.startsWith('image/');
+    card.innerHTML = `<div class="thumb">${isImg?`<img src="${a.data}">`:'<span class="msym">description</span>'}</div><div class="name">${escapeHtml(a.name)}</div><div class="del"><span class="msym">close</span></div>`;
+    card.querySelector('.del').addEventListener('click', (e)=>{ e.stopPropagation(); deleteAsset(a.name); });
+    card.addEventListener('click', ()=>{ navigator.clipboard && navigator.clipboard.writeText(a.name).catch(()=>{}); toast('Filename "'+a.name+'" copied — use it as an src/href in your code','info'); });
+    grid.appendChild(card);
+  });
+}
+function addAssetFiles(fileList){
+  const p = currentProject();
+  const files = Array.from(fileList);
+  let remaining = files.length;
+  if(!remaining) return;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      p.assets = p.assets || [];
+      p.assets = p.assets.filter(a=>a.name!==file.name);
+      p.assets.push({ name:file.name, type:file.type, data:reader.result, size:file.size });
+      markDirty(); renderAssets(); debouncedPreview();
+      remaining--; if(remaining===0) toast('Assets uploaded','success');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function deleteAsset(name){
+  const p = currentProject();
+  p.assets = (p.assets||[]).filter(a=>a.name!==name);
+  markDirty(); renderAssets(); toast('Asset removed','warn');
+}
+const assetDrop = document.getElementById('asset-drop');
+assetDrop.addEventListener('click', ()=> document.getElementById('asset-input').click());
+document.getElementById('asset-input').addEventListener('change', (e)=> addAssetFiles(e.target.files));
+document.getElementById('btn-asset-upload-h').addEventListener('click', ()=> document.getElementById('asset-input').click());
+assetDrop.addEventListener('dragover', (e)=>{ e.preventDefault(); assetDrop.classList.add('dragover'); });
+assetDrop.addEventListener('dragleave', ()=> assetDrop.classList.remove('dragover'));
+assetDrop.addEventListener('drop', (e)=>{ e.preventDefault(); assetDrop.classList.remove('dragover'); addAssetFiles(e.dataTransfer.files); });
+
+/* ============================================================
+   11. PROJECTS PANEL
+   ============================================================ */
+function renderProjects(){
+  const list = document.getElementById('project-list');
+  list.innerHTML = '';
+  Object.values(State.projects).sort((a,b)=>b.updatedAt-a.updatedAt).forEach(p=>{
+    const card = document.createElement('div');
+    card.className = 'proj-card' + (p.id===State.activeProjectId?' active':'');
+    card.innerHTML = `<div class="pname"><span class="msym fs16">folder</span>${escapeHtml(p.name)}</div><div class="pmeta">${Object.keys(p.files).length} files · updated ${timeAgo(p.updatedAt)}</div>`;
+    card.addEventListener('click', ()=> switchProject(p.id));
+    card.addEventListener('contextmenu', (e)=>{
+      e.preventDefault();
+      const menu = document.getElementById('ctx-menu');
+      menu.innerHTML = `<div class="ctx-item" data-act="rename"><span class="msym">edit</span>Rename</div><div class="ctx-sep"></div><div class="ctx-item danger" data-act="delete"><span class="msym">delete</span>Delete</div>`;
+      positionCtx(menu, e);
+      menu.querySelector('[data-act=rename]').onclick = ()=>{ const nn=prompt('Rename project', p.name); if(nn){ p.name=nn; persistProjects(); renderProjects(); syncHeaderName(); } closeCtx(); };
+      menu.querySelector('[data-act=delete]').onclick = ()=>{
+        if(Object.keys(State.projects).length<=1){ toast('You need at least one project','error'); closeCtx(); return; }
+        if(confirm('Delete project "'+p.name+'"?')){ delete State.projects[p.id]; if(State.activeProjectId===p.id) State.activeProjectId=Object.keys(State.projects)[0]; persistProjects(); loadProjectIntoUI(); renderProjects(); toast('Project deleted','warn'); }
+        closeCtx();
+      };
+    });
+    list.appendChild(card);
+  });
+}
+function timeAgo(ts){
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s<60) return 'just now';
+  if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function switchProject(id){
+  syncCanvasToHtml();
+  State.activeProjectId = id; State.openTabs = []; State.activeTab = null; State.selectedNode = null;
+  disposeModels(); persistProjects(); loadProjectIntoUI(); renderProjects();
+  toast('Switched to "'+currentProject().name+'"','success');
+}
+function syncHeaderName(){ document.getElementById('project-name-input').value = currentProject().name; }
+function loadProjectIntoUI(){
+  syncHeaderName();
+  renderFileTree(); renderAssets(); renderTabs();
+  const first = Object.keys(currentProject().files).find(f=>f.endsWith('.html')) || Object.keys(currentProject().files)[0];
+  if(first) openFile(first);
+  updatePreview();
+}
+
+/* ============================================================
+   12. NEW PROJECT MODAL
+   ============================================================ */
+let selectedTemplate = 'blank';
+function renderTemplateGrid(targetId){
+  const grid = document.getElementById(targetId);
+  grid.innerHTML = '';
+  Object.entries(TEMPLATES).forEach(([key,t])=>{
+    const card = document.createElement('div');
+    card.className = 'template-card' + (key===selectedTemplate?' selected':'');
+    card.innerHTML = `<div class="ticon" style="background:${t.color}"><span class="msym fs22">${t.icon}</span></div><div class="tname">${t.name}</div><div class="tdesc">${t.desc}</div>`;
+    card.addEventListener('click', ()=>{ selectedTemplate = key; renderTemplateGrid(targetId); });
+    grid.appendChild(card);
+  });
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(b=> b.addEventListener('click', ()=> closeModal(b.dataset.close)));
+document.querySelectorAll('.modal-overlay').forEach(ov=> ov.addEventListener('click', (e)=>{ if(e.target===ov) closeModal(ov.id); }));
+
+function openNewProjectModal(){ selectedTemplate='blank'; document.getElementById('np-name').value=''; renderTemplateGrid('np-templates'); openModal('modal-newproject'); }
+document.getElementById('btn-new-project').addEventListener('click', openNewProjectModal);
+document.getElementById('btn-new-project-2').addEventListener('click', openNewProjectModal);
+document.getElementById('btn-templates').addEventListener('click', openNewProjectModal);
+document.getElementById('btn-create-project').addEventListener('click', ()=>{
+  const name = document.getElementById('np-name').value.trim() || 'Untitled Project';
+  const id = uid();
+  State.projects[id] = makeProject(name, selectedTemplate, id);
+  State.activeProjectId = id; State.openTabs=[]; State.activeTab=null; disposeModels();
+  persistProjects(); loadProjectIntoUI(); renderProjects(); closeModal('modal-newproject');
+  toast('Project "'+name+'" created','success');
+});
+
+/* ============================================================
+   13. IMPORT / EXPORT ZIP
+   ============================================================ */
+document.getElementById('btn-export-zip').addEventListener('click', exportZip);
+function exportZip(){
+  syncCanvasToHtml();
+  const p = currentProject();
+  const zip = new JSZip();
+  Object.entries(p.files).forEach(([path, content])=>{ if(!path.endsWith('/.keep')) zip.file(path, content); });
+  if(p.assets && p.assets.length){
+    const folder = zip.folder('assets-meta');
+    folder.file('assets.json', JSON.stringify(p.assets.map(a=>({name:a.name,type:a.type,size:a.size})), null, 2));
+    p.assets.forEach(a=>{
+      const base64 = a.data.split(',')[1];
+      if(base64) zip.file('assets/'+a.name, base64, {base64:true});
+    });
+  }
+  zip.generateAsync({type:'blob'}).then(blob=>{
+    downloadBlob(blob, (p.name.replace(/[^a-z0-9-_]+/gi,'_')||'project')+'.zip');
+    toast('Project exported as ZIP','success');
+  });
+}
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 200);
+}
+document.getElementById('btn-import-zip').addEventListener('click', ()=> document.getElementById('zip-input').click());
+document.getElementById('zip-input').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  JSZip.loadAsync(file).then(zip=>{
+    const id = uid();
+    const proj = makeProject(file.name.replace(/\.zip$/i,''), 'blank', id);
+    proj.files = {};
+    const entries = Object.values(zip.files).filter(f=>!f.dir && !f.name.startsWith('assets-meta/') && !f.name.startsWith('assets/'));
+    let pending = entries.length;
+    if(pending===0){ finalizeImport(); return; }
+    entries.forEach(entry=>{
+      entry.async('string').then(content=>{
+        proj.files[entry.name] = content;
+        pending--; if(pending===0) finalizeImport();
+      });
+    });
+    function finalizeImport(){
+      if(Object.keys(proj.files).length===0) proj.files = JSON.parse(JSON.stringify(TEMPLATES.blank.files));
+      State.projects[id] = proj; State.activeProjectId = id; State.openTabs=[]; State.activeTab=null; disposeModels();
+      persistProjects(); loadProjectIntoUI(); renderProjects();
+      toast('Project imported from ZIP','success');
+    }
+  }).catch(()=> toast('Could not read ZIP file','error'));
+  e.target.value = '';
+});
+
+/* ============================================================
+   14. THEME / SIDEBAR / MODE TOGGLES
+   ============================================================ */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', State.theme);
+  document.getElementById('theme-icon').textContent = State.theme==='dark' ? 'dark_mode' : 'light_mode';
+  if(window.monaco && State.editor) monaco.editor.setTheme(State.theme==='dark' ? 'rfb-dark':'rfb-light');
+  persistSettings();
+}
+document.getElementById('btn-theme').addEventListener('click', ()=>{ State.theme = State.theme==='dark'?'light':'dark'; applyTheme(); });
+document.getElementById('btn-toggle-sidebar').addEventListener('click', ()=> document.getElementById('sidebar').classList.toggle('collapsed'));
+
+document.querySelectorAll('.side-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.side-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.side-panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelector(`.side-panel[data-panel="${tab.dataset.panel}"]`).classList.add('active');
+    if(tab.dataset.panel==='projects') renderProjects();
+    if(tab.dataset.panel==='plugins') renderPlugins();
+  });
+});
+
+document.querySelectorAll('.device-toggle button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.device-toggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    State.device = btn.dataset.device;
+    const box = document.getElementById('preview-iframe-box');
+    box.className = State.device==='desktop' ? '' : State.device;
+    const frame = document.getElementById('canvas-frame-wrap');
+    frame.className = State.device==='desktop' ? '' : State.device;
+  });
+});
+
+/* ============================================================
+   15. PLUGINS
+   ============================================================ */
+function renderPlugins(){
+  const list = document.getElementById('plugin-list');
+  list.innerHTML = '';
+  State.plugins.forEach(pl=>{
+    const card = document.createElement('div'); card.className='plugin-card';
+    card.innerHTML = `<div class="prow"><div class="pname"><span class="msym fs16">${pl.icon}</span>${pl.name}</div><div class="switch ${pl.enabled?'on':''}" data-id="${pl.id}"><i></i></div></div><div class="pdesc">${pl.desc}${pl.real?'':' <b style="color:var(--amber)">(simulated)</b>'}</div>`;
+    card.querySelector('.switch').addEventListener('click', ()=>{
+      pl.enabled = !pl.enabled; persistPlugins(); renderPlugins(); applyPluginEffects();
+      toast(pl.name + (pl.enabled?' enabled':' disabled'), pl.enabled?'success':'warn');
+    });
+    list.appendChild(card);
+  });
+}
+function applyPluginEffects(){
+  const formatter = State.plugins.find(p=>p.id==='formatter');
+  document.getElementById('btn-format').style.display = (formatter && formatter.enabled) ? '' : 'none';
+}
+
+/* ============================================================
+   16. SETTINGS
+   ============================================================ */
+document.getElementById('btn-settings').addEventListener('click', ()=>{
+  document.getElementById('set-theme').value = State.theme;
+  document.getElementById('set-fontsize').value = State.settings.fontSize;
+  document.getElementById('set-tabsize').value = State.settings.tabSize;
+  document.getElementById('set-wordwrap').value = State.settings.wordWrap;
+  document.getElementById('set-autosave').value = State.settings.autoSave;
+  document.getElementById('set-minimap').value = State.settings.minimap;
+  openModal('modal-settings');
+});
+document.getElementById('btn-save-settings').addEventListener('click', ()=>{
+  State.theme = document.getElementById('set-theme').value;
+  State.settings.fontSize = +document.getElementById('set-fontsize').value || 13;
+  State.settings.tabSize = +document.getElementById('set-tabsize').value || 2;
+  State.settings.wordWrap = document.getElementById('set-wordwrap').value;
+  State.settings.autoSave = +document.getElementById('set-autosave').value || 8;
+  State.settings.minimap = document.getElementById('set-minimap').value;
+  applyTheme();
+  if(State.editor){
+    State.editor.updateOptions({ fontSize:State.settings.fontSize, tabSize:State.settings.tabSize, wordWrap:State.settings.wordWrap, minimap:{enabled:State.settings.minimap==='on'} });
+  }
+  persistSettings();
+  closeModal('modal-settings');
+  toast('Settings saved','success');
+});
+
+/* ============================================================
+   17. SHORTCUTS MODAL + KEY BINDINGS
+   ============================================================ */
+function renderShortcutsTable(){
+  const table = document.getElementById('kbd-table');
+  table.innerHTML = SHORTCUTS.map(([label,keys])=>`<tr><td>${label}</td><td>${keys.split(' + ').map(k=>`<kbd>${k}</kbd>`).join('')}</td></tr>`).join('');
+}
+document.getElementById('btn-shortcuts').addEventListener('click', ()=>{ renderShortcutsTable(); openModal('modal-shortcuts'); });
+
+document.addEventListener('keydown', (e)=>{
+  const ctrl = e.ctrlKey || e.metaKey;
+  if(ctrl && e.key.toLowerCase()==='s'){ e.preventDefault(); saveNow(); toast('Project saved','success'); }
+  else if(ctrl && e.altKey && e.key.toLowerCase()==='n'){ e.preventDefault(); openNewProjectModal(); }
+  else if(ctrl && e.key.toLowerCase()==='e'){ e.preventDefault(); exportZip(); }
+  else if(ctrl && e.key.toLowerCase()==='b' && !e.shiftKey){ e.preventDefault(); document.getElementById('sidebar').classList.toggle('collapsed'); }
+  else if(ctrl && e.shiftKey && e.key.toLowerCase()==='b'){ e.preventDefault(); openApkModal(); }
+  else if(ctrl && e.key.toLowerCase()==='j'){ e.preventDefault(); State.theme = State.theme==='dark'?'light':'dark'; applyTheme(); }
+  else if(ctrl && e.key.toLowerCase()==='d'){ e.preventDefault(); if(State.mode==='code'){ syncCanvasToHtml(); setMode('design'); } else setMode('code'); }
+  else if(ctrl && e.key.toLowerCase()==='k'){ e.preventDefault(); toggleAiDrawer(true); }
+  else if(ctrl && e.key.toLowerCase()==='w'){ e.preventDefault(); if(State.activeTab) closeTab(State.activeTab); }
+  else if(e.key==='?' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){ renderShortcutsTable(); openModal('modal-shortcuts'); }
+  else if(ctrl && e.shiftKey && e.key.toLowerCase()==='f'){ e.preventDefault(); formatCode(); }
+});
+function formatCode(){
+  if(State.editor){ State.editor.getAction('editor.action.formatDocument').run().then(()=>{ toast('Code formatted','success'); }).catch(()=>{}); }
+}
+document.getElementById('btn-format').addEventListener('click', formatCode);
+document.getElementById('btn-undo').addEventListener('click', ()=>{ if(State.editor){ State.editor.trigger('toolbar','undo',null); }});
+document.getElementById('btn-redo').addEventListener('click', ()=>{ if(State.editor){ State.editor.trigger('toolbar','redo',null); }});
+
+/* ============================================================
+   18. APK BUILD PIPELINE (demo / simulated)
+   ============================================================ */
+const BUILD_STEPS = [
+  {title:'Validating project files', sub:'Checking index.html, manifest, assets', icon:'fact_check', ms:600},
+  {title:'Compiling resources', sub:'AAPT2 — packaging drawables & layouts', icon:'inventory_2', ms:900},
+  {title:'Running Gradle build', sub:'Assembling debug build with Gradle', icon:'construction', ms:1200},
+  {title:'Optimizing with APKTool', sub:'Repacking & optimizing resources.arsc', icon:'compress', ms:800},
+  {title:'Signing APK', sub:'Applying debug keystore signature', icon:'verified_user', ms:600},
+  {title:'Packaging output', sub:'Finalizing build artifact', icon:'inventory', ms:500}
+];
+function openApkModal(){
+  document.getElementById('apk-progress-fill').style.width='0%';
+  document.getElementById('apk-log').innerHTML='';
+  document.getElementById('btn-download-apk').classList.add('hidden');
+  document.getElementById('btn-start-build').classList.remove('hidden');
+  renderPipeline(-1);
+  openModal('modal-apk');
+}
+document.getElementById('btn-build-apk').addEventListener('click', openApkModal);
+function renderPipeline(activeIdx){
+  const wrap = document.getElementById('apk-pipeline');
+  wrap.innerHTML = BUILD_STEPS.map((s,i)=>{
+    const cls = i<activeIdx ? 'done' : (i===activeIdx ? 'active' : '');
+    const icon = i<activeIdx ? 'check' : s.icon;
+    const status = i<activeIdx ? 'Done' : (i===activeIdx ? 'Running…' : 'Queued');
+    return `<div class="pipe-step ${cls}"><div class="pnode"><span class="msym fs16">${icon}</span></div><div class="ptext"><div class="ptitle">${s.title}</div><div class="psub">${s.sub}</div></div><div class="pstatus">${status}</div></div>`;
+  }).join('');
+}
+function apkLog(msg, ok){
+  const log = document.getElementById('apk-log');
+  const line = document.createElement('div'); if(ok) line.className='ok';
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.appendChild(line); log.scrollTop = log.scrollHeight;
+}
+document.getElementById('btn-start-build').addEventListener('click', ()=>{
+  const p = currentProject();
+  const btn = document.getElementById('btn-start-build');
+  btn.disabled = true;
+  const queueItem = {id:uid(), project:p.name, status:'building', ts:Date.now()};
+  State.buildQueue.push(queueItem); persistQueue(); updateQueueBadge();
+  apkLog('Build queued for project "'+p.name+'"');
+  let i = 0;
+  function step(){
+    if(i >= BUILD_STEPS.length){
+      renderPipeline(BUILD_STEPS.length);
+      document.getElementById('apk-progress-fill').style.width='100%';
+      apkLog('BUILD SUCCESSFUL — demo artifact ready', true);
+      document.getElementById('btn-download-apk').classList.remove('hidden');
+      document.getElementById('btn-start-build').classList.add('hidden');
+      btn.disabled = false;
+      queueItem.status = 'success'; persistQueue(); updateQueueBadge();
+      toast('Demo build complete','success');
+      return;
+    }
+    renderPipeline(i);
+    apkLog(BUILD_STEPS[i].title + '…');
+    document.getElementById('apk-progress-fill').style.width = Math.round(((i+0.5)/BUILD_STEPS.length)*100)+'%';
+    setTimeout(()=>{ i++; step(); }, BUILD_STEPS[i] ? BUILD_STEPS[i].ms : 600);
+  }
+  step();
+});
+document.getElementById('btn-download-apk').addEventListener('click', ()=>{
+  const p = currentProject();
+  const zip = new JSZip();
+  Object.entries(p.files).forEach(([path,content])=> zip.file('src/'+path, content));
+  zip.file('README-DEMO-BUILD.txt',
+`RFBuilder — DEMO BUILD OUTPUT
+================================
+This file simulates an APK build so you can see the build pipeline UI in action.
+It is a ZIP archive (not a real signed .apk) containing your project's source files.
+
+A real APK build would additionally require a server-side pipeline running:
+Node.js + Express, Java, the Android SDK, Gradle, APKTool and AAPT2, wired up
+to a build-queue engine, file storage and authentication — none of which can
+run inside a static, offline HTML file. This demo focuses on the front-end
+build UX described in the brief.
+
+Project: ${p.name}
+Built:   ${new Date().toString()}
+`);
+  zip.generateAsync({type:'blob'}).then(blob=>{
+    downloadBlob(blob, (p.name.replace(/[^a-z0-9-_]+/gi,'_')||'app')+'-demo.apk.zip');
+    toast('Demo build downloaded','success');
+  });
+});
+function updateQueueBadge(){ document.getElementById('status-queue').textContent = State.buildQueue.filter(q=>q.status==='building').length; }
+
+/* ============================================================
+   19. AI CHAT (simulated locally)
+   ============================================================ */
+function toggleAiDrawer(open){
+  document.getElementById('ai-drawer').classList.toggle('open', open);
+  document.getElementById('ai-fab').classList.toggle('hide', open);
+}
+document.getElementById('ai-fab').addEventListener('click', ()=> toggleAiDrawer(true));
+document.getElementById('btn-close-ai').addEventListener('click', ()=> toggleAiDrawer(false));
+function addChatMsg(text, who){
+  const wrap = document.getElementById('ai-messages');
+  const el = document.createElement('div'); el.className='chat-msg '+who; el.textContent = text;
+  wrap.appendChild(el); wrap.scrollTop = wrap.scrollHeight;
+}
+function aiReply(q){
+  const s = q.toLowerCase();
+  if(s.includes('page') || s.includes('file')) return 'Click the note-and-plus icon in the Explorer panel (top of the Files tab) to add a new file — try "about.html". It will show up in the file tree instantly.';
+  if(s.includes('export') || s.includes('download')) return 'Use the Export button in the header (or Ctrl+E) to download your whole project — code, files and assets — as a ZIP.';
+  if(s.includes('build') || s.includes('apk') || s.includes('pipeline')) return 'The Build APK button runs a simulated pipeline: validate → AAPT2 → Gradle → APKTool → sign → package. It\'s a UI demo of a real Android build chain, since a static page can\'t run Gradle itself.';
+  if(s.includes('asset') || s.includes('image')) return 'Open the Assets tab in the sidebar and drag an image in. Then reference its exact filename as an src in your HTML — RFBuilder swaps it for the real file automatically in Preview and Export.';
+  if(s.includes('theme') || s.includes('dark') || s.includes('light')) return 'Toggle the sun/moon icon in the header, or press Ctrl+J, to switch between dark and light themes.';
+  if(s.includes('template')) return 'Open "New Project" and pick a template — Landing Page, Portfolio, Login Form or Dashboard — to start with ready-made layouts.';
+  if(s.includes('plugin')) return 'The Plugins tab lets you toggle add-ons. Code Formatter and Dark Mode Pro are fully functional; the rest are backend-dependent and shown as simulated for this static build.';
+  return 'Good question! I\'m a lightweight local assistant bundled in this demo (no external API calls). Try asking about pages, assets, exporting, themes, templates, or the build pipeline.';
+}
+function sendChat(){
+  const input = document.getElementById('ai-input');
+  const text = input.value.trim(); if(!text) return;
+  addChatMsg(text, 'user'); input.value='';
+  setTimeout(()=> addChatMsg(aiReply(text), 'bot'), 380 + Math.random()*300);
+}
+document.getElementById('btn-ai-send').addEventListener('click', sendChat);
+document.getElementById('ai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendChat(); });
+document.querySelectorAll('.chip').forEach(chip=> chip.addEventListener('click', ()=>{ document.getElementById('ai-input').value = chip.dataset.q; sendChat(); }));
+
+/* ============================================================
+   20. ACCOUNT (local demo auth)
+   ============================================================ */
+function renderAccountModal(){
+  const isIn = !!State.account;
+  document.getElementById('account-form').classList.toggle('hidden', isIn);
+  document.getElementById('account-info').classList.toggle('hidden', !isIn);
+  document.getElementById('btn-signin').classList.toggle('hidden', isIn);
+  document.getElementById('btn-signout').classList.toggle('hidden', !isIn);
+  document.getElementById('account-title').textContent = isIn ? 'Account' : 'Sign in (Demo)';
+  if(isIn) document.getElementById('acc-current').textContent = State.account.name + ' — ' + State.account.email;
+}
+document.getElementById('btn-account').addEventListener('click', ()=>{ renderAccountModal(); openModal('modal-account'); });
+document.getElementById('btn-signin').addEventListener('click', ()=>{
+  const name = document.getElementById('acc-name').value.trim();
+  const email = document.getElementById('acc-email').value.trim();
+  if(!name || !email){ toast('Enter a name and email','error'); return; }
+  State.account = {name, email}; persistAccount();
+  document.getElementById('btn-account').textContent = name[0].toUpperCase();
+  renderAccountModal(); toast('Signed in locally as '+name,'success');
+});
+document.getElementById('btn-signout').addEventListener('click', ()=>{
+  State.account = null; persistAccount();
+  document.getElementById('btn-account').textContent = 'G';
+  renderAccountModal(); toast('Signed out','warn');
+});
+
+/* ============================================================
+   21. PROJECT NAME INPUT
+   ============================================================ */
+document.getElementById('project-name-input').addEventListener('input', (e)=>{
+  currentProject().name = e.target.value; markDirty(); renderProjects();
+});
+
+/* ============================================================
+   22. PWA / OFFLINE (best-effort — limited on file:// origins)
+   ============================================================ */
+function setupPWA(){
+  try{
+    const manifest = { name:'RFBuilder', short_name:'RFBuilder', start_url:'.', display:'standalone', background_color:'#0e0b1a', theme_color:'#7c3aed', icons:[] };
+    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+    const link = document.createElement('link'); link.rel='manifest'; link.href = URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  }catch(e){}
+  if('serviceWorker' in navigator && (location.protocol==='https:' )){
+    try{
+      const swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('fetch',e=>{});`;
+      const swBlob = new Blob([swCode], {type:'application/javascript'});
+      navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+    }catch(e){}
+  }
+  document.getElementById('status-net').textContent = navigator.onLine ? 'Online' : 'Offline';
+  window.addEventListener('online', ()=> document.getElementById('status-net').textContent='Online');
+  window.addEventListener('offline', ()=> document.getElementById('status-net').textContent='Offline-ready');
+}
+
+/* ============================================================
+   23. BOOT
+   ============================================================ */
+function boot(){
+  loadAll();
+  applyTheme();
+  renderPlugins(); applyPluginEffects();
+  setupPWA();
+  initMonaco(()=>{
+    loadProjectIntoUI();
+    logToConsole('success', 'RFBuilder ready. Welcome!');
+  });
+  renderProjects();
+  updateQueueBadge();
+  if(State.account) document.getElementById('btn-account').textContent = State.account.name[0].toUpperCase();
+  window.addEventListener('beforeunload', ()=>{ if(State.dirty){ syncCanvasToHtml(); saveNow(); } });
+  setInterval(()=>{ if(State.dirty) saveNow(); }, 4000);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+})();
+</script>
+</body>
+</html>
