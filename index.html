@@ -622,6 +622,18 @@ kbd{ background:var(--bg-3); border:1px solid var(--border-1); border-bottom-wid
       <div class="field-hint" style="background:var(--accent-soft);border:1px solid var(--border-1);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;line-height:1.6;">
         <b style="color:var(--accent-strong);">How this works:</b> a browser can't run the Java/Android SDK/Gradle toolchain itself, so a genuine <code>.apk</code> can't be compiled inside this static page. Instead, RFBuilder does two real things: (1) it packages your project into a real, buildable <b>Android Studio (WebView) project</b> you can compile into a real signed APK with one command, and (2) it plays out the build pipeline below so you can see each stage a real build server would run. Use the pipeline to preview the process, then export the real project to actually ship it.
       </div>
+      <div class="field" style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
+        <div id="apk-icon-preview" title="Click to upload app icon" style="width:64px;height:64px;border-radius:16px;overflow:hidden;flex:0 0 auto;border:1px solid var(--border-0);display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--bg-2);"></div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:11.5px;font-weight:700;color:var(--text-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">App icon</label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="apk-icon-upload-btn" type="button" style="font-size:11.5px;padding:7px 12px;"><span class="msym fs16">upload</span> Upload icon</button>
+            <button class="btn" id="apk-icon-remove-btn" type="button" style="font-size:11.5px;padding:7px 12px;"><span class="msym fs16">delete</span> Remove</button>
+          </div>
+          <div class="field-hint">Square PNG/JPG recommended (512×512). Auto-generated at every Android launcher density (mdpi–xxxhdpi). No upload? A default icon is generated from the app name.</div>
+        </div>
+        <input type="file" id="apk-icon-input" accept="image/*" class="hidden">
+      </div>
       <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:6px;">
         <div class="field" style="flex:1; min-width:160px;"><label>App name</label><input type="text" id="apk-appname" placeholder="My Awesome App"></div>
         <div class="field" style="flex:1; min-width:200px;"><label>Package name</label><input type="text" id="apk-pkg" placeholder="com.rfbuilder.myapp"></div>
@@ -1338,6 +1350,7 @@ function syncHeaderName(){ document.getElementById('project-name-input').value =
 function loadProjectIntoUI(){
   syncHeaderName();
   renderFileTree(); renderAssets(); renderTabs();
+  updateFavicon();
   const first = Object.keys(currentProject().files).find(f=>f.endsWith('.html')) || Object.keys(currentProject().files)[0];
   if(first) openFile(first);
   updatePreview();
@@ -1555,6 +1568,35 @@ const BUILD_STEPS = [
   {title:'Packaging output', sub:'Finalizing build artifact', icon:'inventory', ms:500}
 ];
 function slugify(s){ return (s||'app').toLowerCase().replace(/[^a-z0-9]+/g,'').replace(/^[0-9]+/,'') || 'app'; }
+function renderIconPreview(){
+  const box = document.getElementById('apk-icon-preview');
+  const p = currentProject(); if(!p) return;
+  if(p.icon){ box.innerHTML = `<img src="${p.icon}" style="width:100%;height:100%;object-fit:cover;">`; }
+  else{
+    const nameField = document.getElementById('apk-appname');
+    const letter = ((nameField && nameField.value.trim()[0]) || p.name[0] || 'A').toUpperCase();
+    box.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#fff;background:linear-gradient(135deg,#a78bfa,#6d28d9);">${letter}</div>`;
+  }
+}
+document.getElementById('apk-icon-preview').addEventListener('click', ()=> document.getElementById('apk-icon-input').click());
+document.getElementById('apk-icon-upload-btn').addEventListener('click', ()=> document.getElementById('apk-icon-input').click());
+document.getElementById('apk-icon-remove-btn').addEventListener('click', ()=>{ currentProject().icon = null; markDirty(); renderIconPreview(); updateFavicon(); toast('Icon removed','warn'); });
+document.getElementById('apk-icon-input').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Please choose an image file','error'); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{ currentProject().icon = reader.result; markDirty(); renderIconPreview(); updateFavicon(); toast('Icon updated','success'); };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+document.getElementById('apk-appname').addEventListener('input', renderIconPreview);
+let DEFAULT_FAVICON_HREF = null;
+function updateFavicon(){
+  const link = document.querySelector('link[rel="icon"]'); if(!link) return;
+  if(DEFAULT_FAVICON_HREF === null) DEFAULT_FAVICON_HREF = link.getAttribute('href');
+  const p = currentProject();
+  link.setAttribute('href', (p && p.icon) ? p.icon : DEFAULT_FAVICON_HREF);
+}
 function openApkModal(){
   const p = currentProject();
   document.getElementById('apk-progress-fill').style.width='0%';
@@ -1564,6 +1606,7 @@ function openApkModal(){
   document.getElementById('apk-appname').value = p.name;
   document.getElementById('apk-pkg').value = 'com.rfbuilder.' + slugify(p.name);
   document.getElementById('apk-version').value = '1.0.0';
+  renderIconPreview();
   renderPipeline(-1);
   openModal('modal-apk');
 }
@@ -1651,7 +1694,53 @@ function readApkFields(){
   const version = document.getElementById('apk-version').value.trim() || '1.0.0';
   return {appName, pkg, version};
 }
-function generateAndroidProject(){
+function loadImageAsync(src){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function roundRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function renderIconPng(size, img, letter){
+  const canvas = document.createElement('canvas'); canvas.width=size; canvas.height=size;
+  const ctx = canvas.getContext('2d');
+  if(img){
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const sx = (img.naturalWidth-side)/2, sy = (img.naturalHeight-side)/2;
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+  } else {
+    const grad = ctx.createLinearGradient(0,0,size,size);
+    grad.addColorStop(0,'#a78bfa'); grad.addColorStop(1,'#6d28d9');
+    roundRectPath(ctx,0,0,size,size,size*0.22); ctx.fillStyle=grad; ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '800 '+Math.round(size*0.52)+'px Arial, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(letter, size/2, size/2 + size*0.03);
+  }
+  return canvas.toDataURL('image/png').split(',')[1];
+}
+async function addLauncherIconsToZip(zip, project, appName){
+  const densities = {mdpi:48, hdpi:72, xhdpi:96, xxhdpi:144, xxxhdpi:192};
+  let img = null;
+  if(project.icon){
+    try{ img = await loadImageAsync(project.icon); }
+    catch(e){ apkLog('Could not read custom icon — generating a default one instead.'); }
+  }
+  const letter = (appName.trim()[0] || project.name[0] || 'A').toUpperCase();
+  Object.entries(densities).forEach(([den,size])=>{
+    const b64 = renderIconPng(size, img, letter);
+    zip.file(`app/src/main/res/mipmap-${den}/ic_launcher.png`, b64, {base64:true});
+    zip.file(`app/src/main/res/mipmap-${den}/ic_launcher_round.png`, b64, {base64:true});
+  });
+  // also drop a high-res 512px master icon at project root for reference / store listings
+  zip.file('app-icon-512.png', renderIconPng(512, img, letter), {base64:true});
+}
+async function generateAndroidProject(){
   syncCanvasToHtml();
   const p = currentProject();
   const {appName, pkg, version} = readApkFields();
@@ -1797,6 +1886,9 @@ public class MainActivity extends AppCompatActivity {
     if(base64) zip.file('app/src/main/assets/www/'+a.name, base64, {base64:true});
   });
 
+  apkLog('Rendering launcher icon at all Android densities…');
+  await addLauncherIconsToZip(zip, p, appName);
+
   zip.generateAsync({type:'blob'}).then(blob=>{
     downloadBlob(blob, slugify(appName)+'-android-project.zip');
     apkLog('Android Studio project exported — run ./gradlew assembleDebug to get a real APK.', true);
@@ -1824,6 +1916,7 @@ function aiReply(q){
   const s = q.toLowerCase();
   if(s.includes('page') || s.includes('file')) return 'Click the note-and-plus icon in the Explorer panel (top of the Files tab) to add a new file — try "about.html". It will show up in the file tree instantly.';
   if(s.includes('export') || s.includes('download')) return 'Use the Export button in the header (or Ctrl+E) to download your whole project — code, files and assets — as a ZIP.';
+  if(s.includes('icon')) return 'Open Build APK and click the icon square (or "Upload icon") to set your app icon. When you export the Android project, RFBuilder auto-generates every launcher density (mdpi–xxxhdpi) from it — no icon uploaded yet? A default one is generated from your app\'s first letter.';
   if(s.includes('build') || s.includes('apk') || s.includes('pipeline')) return 'Open Build APK: "Run Build Pipeline" plays out a simulated validate → AAPT2 → Gradle → APKTool → sign → package sequence, since a static page can\'t run Gradle itself. For a REAL installable app, click "Export Android Project (Real)" — it downloads an actual Android Studio/Gradle project wrapping your app in a WebView. Run "./gradlew assembleDebug" on your machine to get a genuine signed APK.';
   if(s.includes('asset') || s.includes('image')) return 'Open the Assets tab in the sidebar and drag an image in. Then reference its exact filename as an src in your HTML — RFBuilder swaps it for the real file automatically in Preview and Export.';
   if(s.includes('theme') || s.includes('dark') || s.includes('light')) return 'Toggle the sun/moon icon in the header, or press Ctrl+J, to switch between dark and light themes.';
